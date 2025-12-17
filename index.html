@@ -250,12 +250,12 @@
                             <div className="bg-indigo-600 w-16 h-16 rounded-xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-indigo-500/30">
                                 <Building2 className="text-white w-8 h-8" />
                             </div>
-                            <h1 className="text-2xl font-bold text-slate-800">Control Empresas</h1>
+                            <h1 className="text-2xl font-bold text-slate-800">CORIA System</h1>
                             <p className="text-slate-500 text-sm mt-1">Gestión Integral de Aperturas</p>
                         </div>
                         {error && <div className="bg-red-50 text-red-600 p-3 rounded-lg mb-6 text-sm flex gap-2 items-center border border-red-100"><ShieldAlert size={16}/> {error}</div>}
                         <form onSubmit={handleLogin} className="space-y-4">
-                            <div className="relative"><Mail className="absolute left-3 top-3 text-slate-400" size={18} /><input type="email" required className="w-full pl-10 pr-4 py-3 bg-slate-50 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="correo@excel.com.mx" value={email} onChange={e=>setEmail(e.target.value)}/></div>
+                            <div className="relative"><Mail className="absolute left-3 top-3 text-slate-400" size={18} /><input type="email" required className="w-full pl-10 pr-4 py-3 bg-slate-50 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="correo@coria.com" value={email} onChange={e=>setEmail(e.target.value)}/></div>
                             <div className="relative"><Lock className="absolute left-3 top-3 text-slate-400" size={18} /><input type="password" required className="w-full pl-10 pr-4 py-3 bg-slate-50 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="Contraseña" value={password} onChange={e=>setPassword(e.target.value)}/></div>
                             <button disabled={loading} className="w-full bg-indigo-600 text-white font-bold py-3 rounded-lg hover:bg-indigo-700 transition disabled:opacity-50">{loading ? 'Validando...' : 'Iniciar Sesión'}</button>
                         </form>
@@ -513,6 +513,49 @@
                 if(confirm("¿Seguro de eliminar permanentemente?")) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', col, id)); 
             };
 
+            // --- AUDITORIA ---
+            const startAudit = () => {
+                const flatList = [];
+                items.offices.filter(o => o.status !== 'archived').forEach(o => {
+                    if (o.companies) {
+                        o.companies.forEach((c, idx) => {
+                            if (c.status !== 'archived') {
+                                flatList.push({
+                                    officeId: o.id,
+                                    officeName: o.name,
+                                    companyIdx: idx,
+                                    companyName: c.name,
+                                    phone: c.phoneNumber,
+                                    web: c.webUrl,
+                                    checks: { phoneWorking: false, phoneAnswered: false, webOnline: false },
+                                    notes: ''
+                                });
+                            }
+                        });
+                    }
+                });
+                setAuditForm(flatList);
+                setAuditModal(true);
+            };
+
+            const saveAudit = async () => {
+                const today = new Date();
+                const monthKey = `${today.getFullYear()}-${today.getMonth() + 1}`;
+                
+                try {
+                    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'audits'), {
+                        monthKey,
+                        createdAt: serverTimestamp(),
+                        auditor: user.email,
+                        details: auditForm
+                    });
+                    setAuditModal(false);
+                    alert("Auditoría guardada correctamente.");
+                } catch (e) {
+                    alert("Error guardando auditoría: " + e.message);
+                }
+            };
+
             const exportExcel = () => {
                 let csv = "ID,Estado,Oficina,Direccion,Vencimiento Contrato,Empresa,Estado Empresa,Lider,Vencimiento Dominio,Telefono,Web,RFC,Direccion Fiscal,Representante,Contacto\n";
                 items.offices.forEach(o => {
@@ -522,7 +565,7 @@
                 });
                 const link = document.createElement("a");
                 link.href = URL.createObjectURL(new Blob([`\uFEFF${csv}`], {type:'text/csv'}));
-                link.download = "Reporte_ControlEmpresas.csv";
+                link.download = "Reporte_CORIA.csv";
                 link.click();
             };
 
@@ -552,7 +595,7 @@
                         <div className="p-6 border-b border-slate-800 flex items-center justify-between">
                             <div className="flex items-center gap-3">
                                 <div className="bg-indigo-600 p-2 rounded-lg"><Building2 size={20}/></div>
-                                <div><h1 className="font-bold tracking-wider">Control</h1><p className="text-[10px] text-indigo-400 uppercase tracking-widest">Empresas</p></div>
+                                <div><h1 className="font-bold tracking-wider">CORIA</h1><p className="text-[10px] text-indigo-400 uppercase tracking-widest">Aperturas</p></div>
                             </div>
                             <button onClick={()=>setMobileMenuOpen(false)} className="md:hidden text-slate-400"><X size={20}/></button>
                         </div>
