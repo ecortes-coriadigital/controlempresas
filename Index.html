@@ -72,7 +72,7 @@
             XCircle, Globe, Phone, FileText, Users, MapPin, Trash2, Edit, Clock, Calendar, 
             Crown, ChevronDown, ChevronUp, MoreVertical, ClipboardList, ExternalLink, Info, 
             LifeBuoy, MessageSquare, AlertCircle, CheckSquare, Send, Download, ShieldAlert, 
-            Eye, History, Settings, Save
+            Eye, History, Settings, Save, RefreshCw
         } from 'lucide-react';
 
         // --- GESTIÓN DE CONFIGURACIÓN ---
@@ -81,22 +81,21 @@
                 // 1. Intentar variables de entorno (si existen, para Canvas)
                 if (typeof __firebase_config !== 'undefined') return JSON.parse(__firebase_config);
                 
-                // 2. Intentar configuración manual en código (Edita esto para Vercel si quieres dejarlo fijo)
-                const hardcodedConfig = {
-                    apiKey: "AIzaSyA9gk593APfDsDIG3VGTclmzs8aO9oLgJg",
-                      authDomain: "control-aperturas-27baf.firebaseapp.com",
-                      projectId: "control-aperturas-27baf",
-                      storageBucket: "control-aperturas-27baf.firebasestorage.app",
-                      messagingSenderId: "291057486602",
-                      appId: "1:291057486602:web:0d05d616ea84cd69e448f3"
-                };
+                // 2. Intentar configuración manual en código
+                const firebaseConfig = {
+  apiKey: "AIzaSyA9gk593APfDsDIG3VGTclmzs8aO9oLgJg",
+  authDomain: "control-aperturas-27baf.firebaseapp.com",
+  projectId: "control-aperturas-27baf",
+  storageBucket: "control-aperturas-27baf.firebasestorage.app",
+  messagingSenderId: "291057486602",
+  appId: "1:291057486602:web:0d05d616ea84cd69e448f3"
+};
 
-                // Si no has editado el texto de ejemplo, lo ignoramos para pedirlo por pantalla
                 if (hardcodedConfig.apiKey !== "TU_API_KEY_AQUI") {
                     return hardcodedConfig;
                 }
 
-                // 3. Intentar localStorage (Configuración guardada desde pantalla UI)
+                // 3. Intentar localStorage
                 const local = localStorage.getItem('apertura_firebase_config');
                 if (local) return JSON.parse(local);
 
@@ -119,7 +118,7 @@
             }
         }
 
-        // FIX: Usar variable dinámica si existe (para Canvas) o default (para Vercel)
+        // Variable global App ID para rutas
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'coria-app-v1';
 
         // --- UTILITIES ---
@@ -190,6 +189,7 @@
             const [offices, setOffices] = useState([]);
             const [tickets, setTickets] = useState([]);
             const [loading, setLoading] = useState(true);
+            const [errorMsg, setErrorMsg] = useState(''); // Estado para errores globales
             
             // Modales
             const [showOfficeModal, setShowOfficeModal] = useState(false);
@@ -210,22 +210,54 @@
             useEffect(() => {
                 const init = async () => {
                     try {
-                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) await signInWithCustomToken(auth, __initial_auth_token);
-                        else await signInAnonymously(auth);
-                    } catch (e) { console.error(e); setLoading(false); }
+                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                            await signInWithCustomToken(auth, __initial_auth_token);
+                        } else {
+                            await signInAnonymously(auth);
+                        }
+                    } catch (e) { 
+                        console.error("Auth Error:", e); 
+                        setErrorMsg("Error de autenticación: " + e.message);
+                        setLoading(false); 
+                    }
                 };
                 init();
-                return onAuthStateChanged(auth, u => { setUser(u); if(!u) setLoading(false); });
+                const unsubscribe = onAuthStateChanged(auth, u => { 
+                    setUser(u); 
+                    if(!u) setLoading(false); 
+                });
+                return () => unsubscribe();
             }, []);
 
             useEffect(() => {
                 if(!user) return;
-                // FIX: Rutas usan appId dinámico para evitar error de permisos
-                const unsub1 = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'offices'), s => { setOffices(s.docs.map(d=>({id:d.id, ...d.data()}))); if(tickets.length) setLoading(false); });
-                const unsub2 = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'tickets'), s => { 
-                    const t = s.docs.map(d=>({id:d.id, ...d.data()})).sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
-                    setTickets(t); setLoading(false); 
-                });
+                
+                // Manejo de errores robusto en onSnapshot
+                const errorHandler = (err) => {
+                    console.error("Firestore Error:", err);
+                    setErrorMsg(`Error conectando a datos: ${err.message || 'Permisos insuficientes o red caída'}`);
+                    setLoading(false);
+                };
+
+                const unsub1 = onSnapshot(
+                    collection(db, 'artifacts', appId, 'public', 'data', 'offices'), 
+                    (s) => { 
+                        setOffices(s.docs.map(d=>({id:d.id, ...d.data()}))); 
+                        if(tickets.length || s.empty) setLoading(false); 
+                    },
+                    errorHandler // IMPORTANTE: Callback de error
+                );
+
+                const unsub2 = onSnapshot(
+                    collection(db, 'artifacts', appId, 'public', 'data', 'tickets'), 
+                    (s) => { 
+                        const t = s.docs.map(d=>({id:d.id, ...d.data()})).sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
+                        setTickets(t); 
+                        setLoading(false); 
+                    },
+                    errorHandler // IMPORTANTE: Callback de error
+                );
+
                 return () => { unsub1(); unsub2(); };
             }, [user]);
 
@@ -233,9 +265,43 @@
             const canDelete = userRole === 'admin';
 
             // Actions
-            const saveOffice = async (e) => { e.preventDefault(); const ref = collection(db, 'artifacts', appId, 'public', 'data', 'offices'); const data = {...officeForm, updatedAt: serverTimestamp()}; if(currentOffice) await updateDoc(doc(ref, currentOffice.id), data); else await addDoc(ref, {...data, createdAt: serverTimestamp(), companies:[]}); setShowOfficeModal(false); };
-            const saveCompany = async (e) => { e.preventDefault(); if(!currentOffice) return; const ref = doc(db, 'artifacts', appId, 'public', 'data', 'offices', currentOffice.id); let list = [...(currentOffice.companies||[])]; if(companyForm.isLeader) list = list.map(c=>({...c, isLeader:false})); if(currentCompany) list[currentCompany.index] = companyForm; else list.push(companyForm); await updateDoc(ref, {companies: list}); setShowCompanyModal(false); };
-            const saveTicket = async (e) => { e.preventDefault(); const ref = collection(db, 'artifacts', appId, 'public', 'data', 'tickets'); const data = {...ticketForm, updatedAt: serverTimestamp()}; if(data.newUpdate){ data.updates = [...(data.updates||[]), {text: data.newUpdate, date: new Date().toISOString(), author: userRole}]; delete data.newUpdate; } if(currentTicket) await updateDoc(doc(ref, currentTicket.id), data); else await addDoc(ref, {...data, createdAt: serverTimestamp()}); setShowTicketModal(false); };
+            const saveOffice = async (e) => { 
+                e.preventDefault(); 
+                try {
+                    const ref = collection(db, 'artifacts', appId, 'public', 'data', 'offices'); 
+                    const data = {...officeForm, updatedAt: serverTimestamp()}; 
+                    if(currentOffice) await updateDoc(doc(ref, currentOffice.id), data); 
+                    else await addDoc(ref, {...data, createdAt: serverTimestamp(), companies:[]}); 
+                    setShowOfficeModal(false); 
+                } catch(err) { alert("Error guardando: " + err.message); }
+            };
+
+            const saveCompany = async (e) => { 
+                e.preventDefault(); 
+                if(!currentOffice) return; 
+                try {
+                    const ref = doc(db, 'artifacts', appId, 'public', 'data', 'offices', currentOffice.id); 
+                    let list = [...(currentOffice.companies||[])]; 
+                    if(companyForm.isLeader) list = list.map(c=>({...c, isLeader:false})); 
+                    if(currentCompany) list[currentCompany.index] = companyForm; 
+                    else list.push(companyForm); 
+                    await updateDoc(ref, {companies: list}); 
+                    setShowCompanyModal(false); 
+                } catch(err) { alert("Error guardando empresa: " + err.message); }
+            };
+
+            const saveTicket = async (e) => { 
+                e.preventDefault(); 
+                try {
+                    const ref = collection(db, 'artifacts', appId, 'public', 'data', 'tickets'); 
+                    const data = {...ticketForm, updatedAt: serverTimestamp()}; 
+                    if(data.newUpdate){ data.updates = [...(data.updates||[]), {text: data.newUpdate, date: new Date().toISOString(), author: userRole}]; delete data.newUpdate; } 
+                    if(currentTicket) await updateDoc(doc(ref, currentTicket.id), data); 
+                    else await addDoc(ref, {...data, createdAt: serverTimestamp()}); 
+                    setShowTicketModal(false); 
+                } catch(err) { alert("Error ticket: " + err.message); }
+            };
+
             const deleteOffice = async (id) => { if(confirm("¿Eliminar oficina?")) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'offices', id)); };
             const deleteCompany = async (oid, idx) => { if(confirm("¿Eliminar empresa?")) { const o = offices.find(x=>x.id===oid); const list = o.companies.filter((_,i)=>i!==idx); await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'offices', oid), {companies: list}); }};
             const deleteTicket = async (id) => { if(confirm("¿Eliminar ticket?")) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tickets', id)); };
@@ -262,6 +328,20 @@
                 });
                 return list.sort((a,b)=>a.priority-b.priority);
             }, [offices]);
+
+            if (errorMsg) return (
+                <div className="h-screen flex items-center justify-center p-6 bg-slate-50">
+                    <div className="bg-white p-8 rounded-xl shadow-xl max-w-md text-center border-2 border-red-100">
+                        <div className="bg-red-100 p-4 rounded-full inline-block mb-4"><ShieldAlert className="w-10 h-10 text-red-600"/></div>
+                        <h2 className="text-xl font-bold text-slate-800 mb-2">Error de Conexión</h2>
+                        <p className="text-sm text-slate-500 mb-6 bg-slate-50 p-3 rounded border font-mono break-all">{errorMsg}</p>
+                        <div className="flex flex-col gap-2">
+                            <button onClick={()=>window.location.reload()} className="w-full bg-indigo-600 text-white py-2 rounded-lg font-bold hover:bg-indigo-700">Reintentar</button>
+                            <button onClick={()=>{localStorage.removeItem('apertura_firebase_config'); window.location.reload()}} className="w-full text-slate-500 py-2 text-sm hover:text-slate-700 underline">Cerrar Sesión / Cambiar DB</button>
+                        </div>
+                    </div>
+                </div>
+            );
 
             if (loading) return <div className="h-screen flex items-center justify-center"><div className="loading-spinner"></div></div>;
 
