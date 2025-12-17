@@ -5,21 +5,26 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CORIA - AperturaMaster</title>
     
-    <!-- Tailwind CSS -->
+    <!-- Estilos -->
     <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- 1. SOLUCIÓN ERROR DE PROCESO (Polyfill para React 18) -->
+    <style>
+        body { font-family: system-ui, -apple-system, sans-serif; }
+        .loading-spinner { border: 3px solid #f3f3f3; border-top: 3px solid #4f46e5; border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+
+    <!-- Polyfills para compatibilidad -->
     <script>
         window.process = { env: { NODE_ENV: 'production' } };
     </script>
 
-    <!-- Import Map: Define de dónde bajan las librerías -->
+    <!-- Import Map: Usamos Gstatic para Firebase (Estabilidad) y ESM para React -->
     <script type="importmap">
     {
         "imports": {
-            "react": "https://esm.sh/react@18.2.0",
-            "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
-            "lucide-react": "https://esm.sh/lucide-react@0.303.0",
+            "react": "https://esm.sh/react@18.2.0?dev",
+            "react-dom/client": "https://esm.sh/react-dom@18.2.0/client?dev",
+            "lucide-react": "https://esm.sh/lucide-react@0.303.0?dev",
             "firebase/app": "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js",
             "firebase/auth": "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js",
             "firebase/firestore": "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js"
@@ -27,12 +32,19 @@
     }
     </script>
 
-    <!-- Babel: Permite leer el código React -->
+    <!-- Babel -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 </head>
 <body class="bg-slate-100 text-slate-800">
-    <div id="root"></div>
+    <div id="root">
+        <!-- Loader inicial mientras carga React -->
+        <div class="h-screen flex flex-col items-center justify-center text-slate-400 gap-4">
+            <div class="loading-spinner"></div>
+            <p class="text-sm">Iniciando Sistema CORIA...</p>
+        </div>
+    </div>
 
+    <!-- Script Principal -->
     <script type="text/babel" data-type="module">
         import React, { useState, useEffect, useMemo } from 'react';
         import ReactDOM from 'react-dom/client';
@@ -63,24 +75,32 @@
             Eye, History, Settings, Save
         } from 'lucide-react';
 
-        // --- 2. GESTIÓN DE CONFIGURACIÓN DE FIREBASE ---
+        // --- GESTIÓN DE CONFIGURACIÓN ---
         const getStoredConfig = () => {
             try {
-                // Primero intentamos leer del entorno (Canvas)
+                // 1. Intentar variables de entorno (si existen, para Canvas)
                 if (typeof __firebase_config !== 'undefined') return JSON.parse(__firebase_config);
                 
-                // AQUÍ ES DONDE PEGAS TUS DATOS DE FIREBASE
-                // Reemplaza todo el bloque de comentarios y el 'return null' con esto:
-                return {
-                  apiKey: "AIzaSyA9gk593APfDsDIG3VGTclmzs8aO9oLgJg",
-  authDomain: "control-aperturas-27baf.firebaseapp.com",
-  projectId: "control-aperturas-27baf",
-  storageBucket: "control-aperturas-27baf.firebasestorage.app",
-  messagingSenderId: "291057486602",
-  appId: "1:291057486602:web:0d05d616ea84cd69e448f3"
+                // 2. Intentar configuración manual en código (Edita esto para Vercel si quieres dejarlo fijo)
+                const hardcodedConfig = {
+                    apiKey: "AIzaSyA9gk593APfDsDIG3VGTclmzs8aO9oLgJg",
+                      authDomain: "control-aperturas-27baf.firebaseapp.com",
+                      projectId: "control-aperturas-27baf",
+                      storageBucket: "control-aperturas-27baf.firebasestorage.app",
+                      messagingSenderId: "291057486602",
+                      appId: "1:291057486602:web:0d05d616ea84cd69e448f3"
                 };
 
-            } catch (e) { console.error(e); }
+                // Si no has editado el texto de ejemplo, lo ignoramos para pedirlo por pantalla
+                if (hardcodedConfig.apiKey !== "TU_API_KEY_AQUI") {
+                    return hardcodedConfig;
+                }
+
+                // 3. Intentar localStorage (Configuración guardada desde pantalla UI)
+                const local = localStorage.getItem('apertura_firebase_config');
+                if (local) return JSON.parse(local);
+
+            } catch (e) { console.error("Error leyendo config:", e); }
             return null;
         };
 
@@ -94,314 +114,239 @@
                 db = getFirestore(app);
                 isConfigured = true;
             } catch (e) {
-                console.error("Error iniciando Firebase con config guardada:", e);
-                localStorage.removeItem('apertura_firebase_config'); // Limpiar si está corrupta
+                console.error("Error iniciando Firebase:", e);
+                localStorage.removeItem('apertura_firebase_config');
             }
         }
 
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        // FIX: Usar variable dinámica si existe (para Canvas) o default (para Vercel)
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'coria-app-v1';
 
-        // --- Utilidades ---
+        // --- UTILITIES ---
         const formatDate = (dateString) => {
             if (!dateString) return '-';
             const date = new Date(dateString);
             const userTimezoneOffset = date.getTimezoneOffset() * 60000;
-            const offsetDate = new Date(date.getTime() + userTimezoneOffset);
-            return offsetDate.toLocaleDateString('es-MX', { year: 'numeric', month: 'short', day: 'numeric' });
+            return new Date(date.getTime() + userTimezoneOffset).toLocaleDateString('es-MX', { year: 'numeric', month: 'short', day: 'numeric' });
         };
 
         const formatDateTime = (timestamp) => {
-            if (!timestamp) return 'Justo ahora';
+            if (!timestamp) return '-';
             const date = timestamp.seconds ? new Date(timestamp.seconds * 1000) : new Date(timestamp);
             return date.toLocaleDateString('es-MX', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
         };
 
         const getDaysDiff = (dateString) => {
             if (!dateString) return null;
-            const target = new Date(dateString);
-            const today = new Date();
-            const diffTime = target - today;
-            return Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+            return Math.ceil((new Date(dateString) - new Date()) / (1000 * 60 * 60 * 24)); 
         };
 
         const getDaysSince = (dateString) => {
-            if (!dateString) return 999; 
-            const past = new Date(dateString);
-            const today = new Date();
-            const diffTime = today - past;
-            return Math.floor(diffTime / (1000 * 60 * 60 * 24));
+            if (!dateString) return 999;
+            return Math.floor((new Date() - new Date(dateString)) / (1000 * 60 * 60 * 24));
         };
 
-        // --- PANTALLA DE CONFIGURACIÓN (Si falla la carga) ---
+        // --- PANTALLA CONFIGURACIÓN ---
         function ConfigScreen() {
             const [jsonInput, setJsonInput] = useState('');
             const [error, setError] = useState('');
 
             const handleSave = () => {
                 try {
-                    // Intenta extraer el objeto JSON del texto pegado (incluso si pegan "const firebaseConfig = { ... }")
-                    let cleanJson = jsonInput;
-                    if (jsonInput.includes('=')) {
-                        cleanJson = jsonInput.substring(jsonInput.indexOf('=') + 1);
-                        if (cleanJson.trim().endsWith(';')) cleanJson = cleanJson.trim().slice(0, -1);
-                    }
-                    
-                    // Limpieza básica de claves sin comillas (formato JS a JSON)
-                    // Nota: Esto es básico, lo ideal es pegar JSON puro
-                    const parsed = JSON.parse(cleanJson);
-                    
+                    let clean = jsonInput.includes('=') ? jsonInput.substring(jsonInput.indexOf('=') + 1) : jsonInput;
+                    if (clean.trim().endsWith(';')) clean = clean.trim().slice(0, -1);
+                    const parsed = JSON.parse(clean);
                     if (!parsed.apiKey) throw new Error("Falta apiKey");
-                    
                     localStorage.setItem('apertura_firebase_config', JSON.stringify(parsed));
-                    window.location.reload(); // Recargar para aplicar
+                    window.location.reload();
                 } catch (e) {
-                    setError("El formato no es válido. Asegúrate de pegar el objeto JSON de Firebase. " + e.message);
+                    setError("Formato inválido. Pega el objeto JSON de Firebase. " + e.message);
                 }
             };
 
             return (
                 <div className="min-h-screen flex items-center justify-center p-4 bg-slate-50">
-                    <div className="bg-white p-8 rounded-2xl shadow-xl max-w-lg w-full border border-slate-200">
-                        <div className="flex justify-center mb-6">
-                            <div className="bg-indigo-100 p-4 rounded-full">
-                                <Settings className="w-10 h-10 text-indigo-600" />
-                            </div>
+                    <div className="bg-white p-8 rounded-2xl shadow-xl max-w-lg w-full border">
+                        <div className="text-center mb-6">
+                            <div className="bg-indigo-100 p-3 rounded-full inline-block mb-3"><Settings className="w-8 h-8 text-indigo-600" /></div>
+                            <h1 className="text-2xl font-bold text-slate-800">Conectar Base de Datos</h1>
+                            <p className="text-slate-500 text-sm mt-2">Pega aquí tu configuración de Firebase para iniciar.</p>
                         </div>
-                        <h1 className="text-2xl font-bold text-center text-slate-800 mb-2">Configuración Inicial</h1>
-                        <p className="text-slate-500 text-center mb-6 text-sm">
-                            Para conectar <strong>AperturaMaster</strong> a tu base de datos, pega aquí la configuración de tu proyecto Firebase.
-                        </p>
-                        
-                        <div className="space-y-4">
-                            <div>
-                                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Configuración Firebase (JSON)</label>
-                                <textarea 
-                                    className="w-full border border-slate-300 rounded-lg p-3 text-xs font-mono h-32 focus:ring-2 focus:ring-indigo-500 outline-none"
-                                    placeholder='{ "apiKey": "...", "authDomain": "...", ... }'
-                                    value={jsonInput}
-                                    onChange={e => setJsonInput(e.target.value)}
-                                ></textarea>
-                            </div>
-                            
-                            {error && (
-                                <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm flex items-start gap-2">
-                                    <AlertCircle size={16} className="mt-0.5 shrink-0"/>
-                                    {error}
-                                </div>
-                            )}
-
-                            <button 
-                                onClick={handleSave}
-                                className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-lg font-bold flex items-center justify-center gap-2 transition-all shadow-lg shadow-indigo-200"
-                            >
-                                <Save size={18}/> Guardar y Conectar
-                            </button>
-                        </div>
-                        
-                        <div className="mt-6 pt-6 border-t border-slate-100 text-center">
-                            <p className="text-xs text-slate-400">
-                                ¿No tienes los datos? Ve a <a href="https://console.firebase.google.com" target="_blank" className="text-indigo-500 underline">Firebase Console</a> &gt; Configuración del Proyecto.
-                            </p>
-                        </div>
+                        <textarea className="w-full border rounded p-3 text-xs font-mono h-32 mb-4 bg-slate-50" placeholder='{ "apiKey": "...", ... }' value={jsonInput} onChange={e => setJsonInput(e.target.value)}></textarea>
+                        {error && <div className="bg-red-50 text-red-600 p-3 rounded text-sm mb-4 flex gap-2"><AlertCircle size={16}/>{error}</div>}
+                        <button onClick={handleSave} className="w-full bg-indigo-600 text-white py-3 rounded-lg font-bold hover:bg-indigo-700 transition">Guardar y Conectar</button>
                     </div>
                 </div>
             );
         }
 
-        // --- COMPONENTE PRINCIPAL ---
+        // --- APP PRINCIPAL ---
         function AperturaMaster() {
-            // Si no hay config, mostramos pantalla de configuración
             if (!isConfigured) return <ConfigScreen />;
 
             const [user, setUser] = useState(null);
             const [userRole, setUserRole] = useState('admin');
             const [activeTab, setActiveTab] = useState('dashboard');
             const [offices, setOffices] = useState([]);
-            const [tickets, setTickets] = useState([]); 
+            const [tickets, setTickets] = useState([]);
             const [loading, setLoading] = useState(true);
             
             // Modales
             const [showOfficeModal, setShowOfficeModal] = useState(false);
             const [showCompanyModal, setShowCompanyModal] = useState(false);
-            const [showTicketModal, setShowTicketModal] = useState(false); 
+            const [showTicketModal, setShowTicketModal] = useState(false);
             
             const [currentOffice, setCurrentOffice] = useState(null);
-            const [currentCompany, setCurrentCompany] = useState(null); 
+            const [currentCompany, setCurrentCompany] = useState(null);
             const [currentTicket, setCurrentTicket] = useState(null);
             const [searchTerm, setSearchTerm] = useState('');
 
-            // Estados Formularios (Idénticos al anterior)
-            const initialOfficeState = { name: '', address: '', contractEndDate: '', landlordName: '', notes: '', companies: [] };
-            const initialCompanyState = { name: '', isLeader: false, interior: '', assignmentDate: new Date().toISOString().split('T')[0], checklist: { telmexProof: false, fiscalAddressEmail: false, interiorAssigned: false, emailCreated: false, webCreated: false, phoneInstalled: false }, webUrl: '', domainExpirationDate: '', lastWebCheck: new Date().toISOString().split('T')[0], phoneNumber: '', lastPhoneCheck: new Date().toISOString().split('T')[0] };
-            const initialTicketState = { officeId: '', officeName: '', companyName: '', type: 'falla_tecnica', category: 'internet', priority: 'media', status: 'pendiente', description: '', updates: [], newUpdate: '' };
+            // Forms
+            const [officeForm, setOfficeForm] = useState({ name: '', address: '', contractEndDate: '', landlordName: '', notes: '', companies: [] });
+            const [companyForm, setCompanyForm] = useState({ name: '', isLeader: false, interior: '', assignmentDate: new Date().toISOString().split('T')[0], checklist: { telmexProof: false, fiscalAddressEmail: false, interiorAssigned: false, emailCreated: false, webCreated: false, phoneInstalled: false }, webUrl: '', domainExpirationDate: '', lastWebCheck: '', phoneNumber: '', lastPhoneCheck: '' });
+            const [ticketForm, setTicketForm] = useState({ officeId: '', officeName: '', companyName: '', type: 'falla_tecnica', category: 'internet', priority: 'media', status: 'pendiente', description: '', updates: [], newUpdate: '' });
 
-            const [officeForm, setOfficeForm] = useState(initialOfficeState);
-            const [companyForm, setCompanyForm] = useState(initialCompanyState);
-            const [ticketForm, setTicketForm] = useState(initialTicketState);
-
-            // Auth Effect
+            // Auth & Data
             useEffect(() => {
-                const initAuth = async () => {
+                const init = async () => {
                     try {
-                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                            await signInWithCustomToken(auth, __initial_auth_token);
-                        } else {
-                            await signInAnonymously(auth);
-                        }
-                    } catch (error) {
-                        console.error("Auth error:", error);
-                        setLoading(false);
-                    }
+                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) await signInWithCustomToken(auth, __initial_auth_token);
+                        else await signInAnonymously(auth);
+                    } catch (e) { console.error(e); setLoading(false); }
                 };
-                initAuth();
-                return onAuthStateChanged(auth, (u) => {
-                    setUser(u);
-                    if (!u) setLoading(false);
-                });
+                init();
+                return onAuthStateChanged(auth, u => { setUser(u); if(!u) setLoading(false); });
             }, []);
 
-            // Data Fetching
             useEffect(() => {
-                if (!user) return;
-                const unsubOffices = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'offices_v3'), 
-                    (snap) => { setOffices(snap.docs.map(d => ({id: d.id, ...d.data()}))); if (!tickets.length) setLoading(false); },
-                    (err) => { console.error(err); setLoading(false); }
-                );
-                const unsubTickets = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'tickets'),
-                    (snap) => { 
-                        const docs = snap.docs.map(d => ({id: d.id, ...d.data()}));
-                        docs.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
-                        setTickets(docs);
-                        setLoading(false);
-                    },
-                    (err) => console.error(err)
-                );
-                return () => { unsubOffices(); unsubTickets(); };
+                if(!user) return;
+                // FIX: Rutas usan appId dinámico para evitar error de permisos
+                const unsub1 = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'offices'), s => { setOffices(s.docs.map(d=>({id:d.id, ...d.data()}))); if(tickets.length) setLoading(false); });
+                const unsub2 = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'tickets'), s => { 
+                    const t = s.docs.map(d=>({id:d.id, ...d.data()})).sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
+                    setTickets(t); setLoading(false); 
+                });
+                return () => { unsub1(); unsub2(); };
             }, [user]);
 
-            // ... Lógica de negocio (Permisos, Exportar, Alertas, CRUD) ...
-            // (Misma lógica que la versión anterior, resumida para brevedad en esta vista de "solución de error")
-            const canEdit = userRole === 'admin'; 
+            const canEdit = userRole === 'admin';
             const canDelete = userRole === 'admin';
 
-            const exportDataToCSV = () => {
-                const headers = ['ID', 'Oficina', 'Dirección', 'Arrendador', 'Fin Contrato', 'Notas', 'Empresa', 'Líder', 'Int', 'Asignada', 'Tel', 'Web', 'URL', 'Venc.Dom', 'Num.Tel'];
-                let csv = headers.join(",") + "\n";
-                offices.forEach(off => {
-                    const base = [`"${off.id}"`, `"${off.name}"`, `"${off.address}"`, `"${off.landlordName}"`, `"${off.contractEndDate}"`, `"${off.notes}"`];
-                    if(!off.companies?.length) csv += base.join(",") + ",,,,,,,,,\n";
-                    else off.companies.forEach(c => csv += [...base, `"${c.name}"`, c.isLeader?'SI':'NO', `"${c.interior}"`, `"${c.assignmentDate}"`, c.checklist?.phoneInstalled?'SI':'NO', c.checklist?.webCreated?'SI':'NO', `"${c.webUrl}"`, `"${c.domainExpirationDate}"`, `"${c.phoneNumber}"`].join(",") + "\n");
+            // Actions
+            const saveOffice = async (e) => { e.preventDefault(); const ref = collection(db, 'artifacts', appId, 'public', 'data', 'offices'); const data = {...officeForm, updatedAt: serverTimestamp()}; if(currentOffice) await updateDoc(doc(ref, currentOffice.id), data); else await addDoc(ref, {...data, createdAt: serverTimestamp(), companies:[]}); setShowOfficeModal(false); };
+            const saveCompany = async (e) => { e.preventDefault(); if(!currentOffice) return; const ref = doc(db, 'artifacts', appId, 'public', 'data', 'offices', currentOffice.id); let list = [...(currentOffice.companies||[])]; if(companyForm.isLeader) list = list.map(c=>({...c, isLeader:false})); if(currentCompany) list[currentCompany.index] = companyForm; else list.push(companyForm); await updateDoc(ref, {companies: list}); setShowCompanyModal(false); };
+            const saveTicket = async (e) => { e.preventDefault(); const ref = collection(db, 'artifacts', appId, 'public', 'data', 'tickets'); const data = {...ticketForm, updatedAt: serverTimestamp()}; if(data.newUpdate){ data.updates = [...(data.updates||[]), {text: data.newUpdate, date: new Date().toISOString(), author: userRole}]; delete data.newUpdate; } if(currentTicket) await updateDoc(doc(ref, currentTicket.id), data); else await addDoc(ref, {...data, createdAt: serverTimestamp()}); setShowTicketModal(false); };
+            const deleteOffice = async (id) => { if(confirm("¿Eliminar oficina?")) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'offices', id)); };
+            const deleteCompany = async (oid, idx) => { if(confirm("¿Eliminar empresa?")) { const o = offices.find(x=>x.id===oid); const list = o.companies.filter((_,i)=>i!==idx); await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'offices', oid), {companies: list}); }};
+            const deleteTicket = async (id) => { if(confirm("¿Eliminar ticket?")) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tickets', id)); };
+            const performQuickCheck = async (oid, idx, type) => { if(!canEdit) return; const o = offices.find(x=>x.id===oid); const list = [...o.companies]; const key = type==='phone'?'lastPhoneCheck':'lastWebCheck'; list[idx][key] = new Date().toISOString().split('T')[0]; await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'offices', oid), {companies: list}); };
+
+            const exportExcel = () => {
+                let csv = "ID,Oficina,Direccion,Vencimiento,Empresa,Interior,Telefono,Web\n";
+                offices.forEach(o => {
+                    if(!o.companies?.length) csv += `"${o.id}","${o.name}","${o.address}","${formatDate(o.contractEndDate)}",,,,\n`;
+                    else o.companies.forEach(c => csv += `"${o.id}","${o.name}","${o.address}","${formatDate(o.contractEndDate)}","${c.name}","${c.interior}","${c.phoneNumber}","${c.webUrl}"\n`);
                 });
-                const link = document.createElement("a");
-                link.href = URL.createObjectURL(new Blob([`\uFEFF${csv}`], {type: 'text/csv;charset=utf-8;'}));
-                link.download = `Reporte_Aperturas_${new Date().toISOString().slice(0,10)}.csv`;
-                link.click();
+                const link = document.createElement("a"); link.href = URL.createObjectURL(new Blob([`\uFEFF${csv}`], {type:'text/csv'})); link.download = "Reporte.csv"; link.click();
             };
 
             const alerts = useMemo(() => {
                 const list = [];
                 offices.forEach(o => {
-                    if(o.contractEndDate && getDaysDiff(o.contractEndDate) <= 90) list.push({ id: `c-${o.id}`, priority: getDaysDiff(o.contractEndDate)<=30?1:2, type: getDaysDiff(o.contractEndDate)<=30?'critical':'warning', title: `Contrato: ${o.name}`, msg: `Vence el ${formatDate(o.contractEndDate)}`, actionType: 'editOffice', data: o });
+                    if(o.contractEndDate && getDaysDiff(o.contractEndDate) <= 90) list.push({type:'contract', priority:1, title:`Contrato: ${o.name}`, msg:`Vence el ${formatDate(o.contractEndDate)}`, data:o});
                     o.companies?.forEach((c,i) => {
-                        if(c.domainExpirationDate && getDaysDiff(c.domainExpirationDate) <= 90) list.push({ id: `d-${o.id}-${i}`, priority: 2, type: 'warning', title: `Dominio: ${c.name}`, msg: `Vence: ${formatDate(c.domainExpirationDate)}`, actionType: 'editCompany', data: {officeId:o.id, companyIndex:i, data:c} });
-                        if(c.checklist?.phoneInstalled && getDaysSince(c.lastPhoneCheck) >= 15) list.push({ id: `p-${o.id}-${i}`, priority: 1, type: 'action', title: `Teléfono: ${c.name}`, msg: `Revisar línea (última: ${formatDate(c.lastPhoneCheck)})`, actionType: 'quickCheckPhone', data: {officeId:o.id, companyIndex:i} });
-                        if(c.checklist?.webCreated && getDaysSince(c.lastWebCheck) >= 30) list.push({ id: `w-${o.id}-${i}`, priority: 3, type: 'action', title: `Web: ${c.name}`, msg: `Revisar sitio (última: ${formatDate(c.lastWebCheck)})`, actionType: 'quickCheckWeb', data: {officeId:o.id, companyIndex:i} });
+                        if(c.domainExpirationDate && getDaysDiff(c.domainExpirationDate) <= 90) list.push({type:'domain', priority:2, title:`Dominio: ${c.name}`, msg:`Vence el ${formatDate(c.domainExpirationDate)}`, data:{oid:o.id, idx:i, c}});
+                        if(c.checklist?.phoneInstalled && getDaysSince(c.lastPhoneCheck) >= 15) list.push({type:'phone', actionType:'quickCheckPhone', priority:1, title:`Teléfono: ${c.name}`, msg:`Revisar línea (última: ${formatDate(c.lastPhoneCheck)})`, data:{officeId:o.id, companyIndex:i}});
+                        if(c.checklist?.webCreated && getDaysSince(c.lastWebCheck) >= 30) list.push({type:'web', actionType:'quickCheckWeb', priority:3, title:`Web: ${c.name}`, msg:`Revisar sitio (última: ${formatDate(c.lastWebCheck)})`, data:{officeId:o.id, companyIndex:i}});
                     });
                 });
-                return list.sort((a,b) => a.priority - b.priority);
+                return list.sort((a,b)=>a.priority-b.priority);
             }, [offices]);
 
-            const saveOffice = async (e) => { e.preventDefault(); if(!canEdit) return; const ref = collection(db, 'artifacts', appId, 'public', 'data', 'offices_v3'); const payload = { ...officeForm, updatedAt: serverTimestamp() }; if(currentOffice) await updateDoc(doc(ref, currentOffice.id), payload); else await addDoc(ref, { ...payload, createdAt: serverTimestamp(), companies: [] }); setShowOfficeModal(false); };
-            const saveCompany = async (e) => { e.preventDefault(); if(!canEdit || !currentOffice) return; const ref = doc(db, 'artifacts', appId, 'public', 'data', 'offices_v3', currentOffice.id); let comps = [...(currentOffice.companies||[])]; if(!currentCompany && comps.length>=5) return alert("Lleno"); if(companyForm.isLeader) comps = comps.map(c=>({...c, isLeader:false})); if(currentCompany) comps[currentCompany.companyIndex] = companyForm; else comps.push(companyForm); await updateDoc(ref, {companies: comps}); setShowCompanyModal(false); };
-            const saveTicket = async (e) => { e.preventDefault(); const ref = collection(db, 'artifacts', appId, 'public', 'data', 'tickets'); const data = { ...ticketForm, updatedAt: serverTimestamp() }; if(ticketForm.newUpdate) data.updates = [...(ticketForm.updates||[]), {text: ticketForm.newUpdate, date: new Date().toISOString(), author: userRole==='admin'?'Admin':'Consultor'}]; delete data.newUpdate; if(currentTicket) await updateDoc(doc(ref, currentTicket.id), data); else await addDoc(ref, {...data, createdAt: serverTimestamp(), updates: []}); setShowTicketModal(false); };
-            const deleteOffice = async (id) => { if(canDelete && confirm("¿Borrar todo?")) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'offices_v3', id)); };
-            const deleteCompany = async (oid, idx) => { if(canDelete && confirm("¿Borrar empresa?")) { const o = offices.find(x=>x.id===oid); const comps = o.companies.filter((_,i)=>i!==idx); await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'offices_v3', oid), {companies: comps}); } };
-            const performQuickCheck = async (oid, idx, type) => { if(!canEdit) return; const o = offices.find(x=>x.id===oid); const comps = [...o.companies]; const key = type==='phone'?'lastPhoneCheck':'lastWebCheck'; comps[idx][key] = new Date().toISOString().split('T')[0]; await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'offices_v3', oid), {companies: comps}); };
-
-            // --- RENDERIZADO UI (Simplificado igual que antes pero con lógica completa) ---
-            if (loading) return <div className="h-screen flex items-center justify-center text-slate-400">Cargando...</div>;
+            if (loading) return <div className="h-screen flex items-center justify-center"><div className="loading-spinner"></div></div>;
 
             return (
-                <div className="flex h-screen bg-slate-100 font-sans text-slate-800 overflow-hidden">
-                    <aside className="w-20 lg:w-64 bg-slate-900 text-white flex flex-col shadow-2xl">
-                        <div className="p-4 border-b border-slate-800 flex items-center justify-center lg:justify-start gap-3">
-                            <div className="bg-indigo-600 p-2 rounded-lg"><Building2 className="w-6 h-6"/></div>
-                            <h1 className="hidden lg:block font-bold">CORIA<br/><span className="text-indigo-400">Aperturas</span></h1>
+                <div className="flex h-screen overflow-hidden">
+                    {/* SIDEBAR */}
+                    <aside className="w-64 bg-slate-900 text-white flex flex-col hidden md:flex">
+                        <div className="p-6 border-b border-slate-800 flex items-center gap-3">
+                            <div className="bg-indigo-600 p-2 rounded-lg"><Building2 size={24}/></div>
+                            <h1 className="font-bold text-lg">CORIA<br/><span className="text-indigo-400 text-sm">Aperturas</span></h1>
                         </div>
-                        <nav className="flex-1 p-2 space-y-2">
-                            <button onClick={()=>setActiveTab('dashboard')} className={`w-full flex items-center gap-3 p-3 rounded transition-all ${activeTab==='dashboard'?'bg-indigo-600':'hover:bg-slate-800'}`}><LayoutDashboard size={20}/><span className="hidden lg:inline">Tablero</span></button>
-                            <button onClick={()=>setActiveTab('offices')} className={`w-full flex items-center gap-3 p-3 rounded transition-all ${activeTab==='offices'?'bg-indigo-600':'hover:bg-slate-800'}`}><Building size={20}/><span className="hidden lg:inline">Oficinas</span></button>
-                            <button onClick={()=>setActiveTab('support')} className={`w-full flex items-center gap-3 p-3 rounded transition-all ${activeTab==='support'?'bg-indigo-600':'hover:bg-slate-800'}`}><LifeBuoy size={20}/><span className="hidden lg:inline">Mesa de Ayuda</span></button>
+                        <nav className="flex-1 p-4 space-y-2">
+                            <button onClick={()=>setActiveTab('dashboard')} className={`w-full flex gap-3 p-3 rounded ${activeTab==='dashboard'?'bg-indigo-600':'hover:bg-slate-800'}`}><LayoutDashboard/> Tablero</button>
+                            <button onClick={()=>setActiveTab('offices')} className={`w-full flex gap-3 p-3 rounded ${activeTab==='offices'?'bg-indigo-600':'hover:bg-slate-800'}`}><Building/> Oficinas</button>
+                            <button onClick={()=>setActiveTab('support')} className={`w-full flex gap-3 p-3 rounded ${activeTab==='support'?'bg-indigo-600':'hover:bg-slate-800'}`}><LifeBuoy/> Mesa de Ayuda</button>
                         </nav>
-                        <div className="p-4 bg-slate-950 text-center lg:text-left">
-                            <p className="text-[10px] text-slate-500 font-bold mb-2">ROL ACTUAL</p>
-                            <div className="flex flex-col gap-2">
-                                <button onClick={()=>setUserRole('admin')} className={`px-2 py-1 rounded text-xs font-bold ${userRole==='admin'?'bg-emerald-600':'bg-slate-800'}`}>Admin</button>
-                                <button onClick={()=>setUserRole('consultor')} className={`px-2 py-1 rounded text-xs font-bold ${userRole==='consultor'?'bg-blue-600':'bg-slate-800'}`}>Consultor</button>
+                        <div className="p-4 bg-slate-950">
+                            <p className="text-xs text-slate-500 font-bold mb-2">MODO (DEMO)</p>
+                            <div className="flex gap-2">
+                                <button onClick={()=>setUserRole('admin')} className={`px-2 py-1 text-xs rounded ${userRole==='admin'?'bg-emerald-600':'bg-slate-800'}`}>Admin</button>
+                                <button onClick={()=>setUserRole('consultor')} className={`px-2 py-1 text-xs rounded ${userRole==='consultor'?'bg-blue-600':'bg-slate-800'}`}>Consultor</button>
                             </div>
-                            <button onClick={()=>{localStorage.removeItem('apertura_firebase_config'); window.location.reload()}} className="mt-4 text-[10px] text-slate-600 hover:text-red-400 underline">Desconectar BD</button>
+                            <button onClick={()=>{localStorage.removeItem('apertura_firebase_config');location.reload()}} className="mt-3 text-xs text-red-400 hover:underline">Desconectar</button>
                         </div>
                     </aside>
 
-                    <main className="flex-1 flex flex-col overflow-hidden">
-                        <header className="bg-white border-b px-6 py-4 flex justify-between items-center shrink-0">
-                            <h2 className="text-xl font-bold">{activeTab==='dashboard'?'Tablero':activeTab==='offices'?'Oficinas':'Soporte'}</h2>
+                    {/* MAIN */}
+                    <main className="flex-1 flex flex-col bg-slate-50">
+                        <header className="bg-white border-b p-4 flex justify-between items-center shadow-sm">
+                            <h2 className="font-bold text-xl capitalize">{activeTab}</h2>
                             <div className="flex gap-2">
-                                <button onClick={exportDataToCSV} className="bg-emerald-600 text-white px-3 py-2 rounded flex gap-2 text-sm font-bold items-center"><Download size={16}/> <span className="hidden sm:inline">Excel</span></button>
-                                {activeTab==='offices' && canEdit && <button onClick={()=>{setCurrentOffice(null); setOfficeForm(initialOfficeState); setShowOfficeModal(true)}} className="bg-indigo-600 text-white px-3 py-2 rounded flex gap-2 text-sm font-bold items-center"><Plus size={16}/> <span className="hidden sm:inline">Nueva Oficina</span></button>}
-                                {activeTab==='support' && <button onClick={()=>{setCurrentTicket(null); setTicketForm(initialTicketState); setShowTicketModal(true)}} className="bg-indigo-600 text-white px-3 py-2 rounded flex gap-2 text-sm font-bold items-center"><Plus size={16}/> <span className="hidden sm:inline">Ticket</span></button>}
+                                <button onClick={exportExcel} className="flex gap-2 items-center bg-emerald-600 text-white px-4 py-2 rounded shadow hover:bg-emerald-700"><Download size={18}/> <span className="hidden sm:inline">Excel</span></button>
+                                {activeTab==='offices' && canEdit && <button onClick={()=>{setCurrentOffice(null); setOfficeForm({name:'', address:'', contractEndDate:'', landlordName:'', notes:'', companies:[]}); setShowOfficeModal(true)}} className="flex gap-2 items-center bg-indigo-600 text-white px-4 py-2 rounded shadow hover:bg-indigo-700"><Plus size={18}/> Oficina</button>}
+                                {activeTab==='support' && <button onClick={()=>{setCurrentTicket(null); setTicketForm({officeId:'', priority:'media', status:'pendiente', category:'internet', description:'', updates:[], newUpdate:''}); setShowTicketModal(true)}} className="flex gap-2 items-center bg-indigo-600 text-white px-4 py-2 rounded shadow hover:bg-indigo-700"><Plus size={18}/> Ticket</button>}
                             </div>
                         </header>
 
-                        <div className="flex-1 overflow-y-auto p-6">
-                            {/* DASHBOARD */}
+                        <div className="flex-1 overflow-auto p-6">
                             {activeTab === 'dashboard' && (
                                 <div className="max-w-6xl mx-auto space-y-6">
-                                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                                        <div className="bg-white p-4 rounded shadow-sm border"><p className="text-xs text-slate-500 font-bold">EMPRESAS</p><h3 className="text-2xl font-bold">{offices.reduce((a,o)=>a+(o.companies?.length||0),0)}</h3></div>
-                                        <div className="bg-white p-4 rounded shadow-sm border"><p className="text-xs text-slate-500 font-bold">ESPACIOS</p><h3 className="text-2xl font-bold text-indigo-600">{(offices.length*5)-offices.reduce((a,o)=>a+(o.companies?.length||0),0)}</h3></div>
-                                        <div className="bg-white p-4 rounded shadow-sm border"><p className="text-xs text-slate-500 font-bold">ALERTAS</p><h3 className="text-2xl font-bold text-amber-500">{alerts.length}</h3></div>
-                                        <div className="bg-white p-4 rounded shadow-sm border"><p className="text-xs text-slate-500 font-bold">TICKETS</p><h3 className="text-2xl font-bold text-slate-700">{tickets.filter(t=>t.status!=='resuelto').length}</h3></div>
+                                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                        <div className="bg-white p-4 rounded shadow border"><p className="text-xs text-slate-500 font-bold">EMPRESAS</p><h3 className="text-2xl font-bold">{offices.reduce((a,b)=>a+(b.companies?.length||0),0)}</h3></div>
+                                        <div className="bg-white p-4 rounded shadow border"><p className="text-xs text-slate-500 font-bold">ESPACIOS</p><h3 className="text-2xl font-bold text-indigo-600">{(offices.length*5)-offices.reduce((a,b)=>a+(b.companies?.length||0),0)}</h3></div>
+                                        <div className="bg-white p-4 rounded shadow border"><p className="text-xs text-slate-500 font-bold">ALERTAS</p><h3 className="text-2xl font-bold text-amber-500">{alerts.length}</h3></div>
+                                        <div className="bg-white p-4 rounded shadow border"><p className="text-xs text-slate-500 font-bold">TICKETS</p><h3 className="text-2xl font-bold text-slate-700">{tickets.filter(t=>t.status!=='resuelto').length}</h3></div>
                                     </div>
-                                    {alerts.length > 0 && (
-                                        <div className="bg-white rounded shadow-sm border overflow-hidden">
-                                            <div className="bg-slate-50 px-4 py-2 border-b font-bold text-sm flex gap-2 items-center"><AlertCircle size={16} className="text-amber-500"/> Alertas Pendientes</div>
-                                            <div className="divide-y">
-                                                {alerts.map((a,i) => (
-                                                    <div key={i} className="p-3 flex justify-between items-center hover:bg-slate-50">
-                                                        <div><p className="font-bold text-sm">{a.title}</p><p className="text-xs text-slate-500">{a.msg}</p></div>
-                                                        {canEdit && (a.actionType.includes('Check') ? <button onClick={()=>performQuickCheck(a.data.officeId, a.data.companyIndex, a.actionType.includes('Phone')?'phone':'web')} className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs font-bold">Revisar</button> : <button onClick={()=>{setActiveTab('offices'); setCurrentOffice(a.data); setShowOfficeModal(true)}} className="bg-slate-100 text-slate-700 px-2 py-1 rounded text-xs">Ver</button>)}
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
+                                    <div className="bg-white rounded shadow border">
+                                        <div className="p-4 border-b font-bold flex gap-2 items-center"><AlertTriangle size={18} className="text-amber-500"/> Alertas Pendientes</div>
+                                        {alerts.length===0 ? <div className="p-8 text-center text-slate-400">Todo en orden</div> : 
+                                            alerts.map((a,i)=>(
+                                                <div key={i} className="p-4 border-b flex justify-between items-center hover:bg-slate-50">
+                                                    <div><p className="font-bold">{a.title}</p><p className="text-sm text-slate-600">{a.msg}</p></div>
+                                                    {canEdit && (a.actionType?.includes('Check') ? <button onClick={()=>performQuickCheck(a.data.officeId, a.data.companyIndex, a.actionType.includes('Phone')?'phone':'web')} className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs font-bold">Revisar</button> : <button onClick={()=>{setActiveTab('offices'); if(a.type==='contract'){setCurrentOffice(a.data); setShowOfficeModal(true)} }} className="text-indigo-600 text-sm font-bold">Ver</button>)}
+                                                </div>
+                                            ))
+                                        }
+                                    </div>
                                 </div>
                             )}
 
-                            {/* OFICINAS */}
                             {activeTab === 'offices' && (
-                                <div className="max-w-7xl mx-auto space-y-4">
-                                    <div className="relative max-w-md"><Search className="absolute left-3 top-2.5 text-slate-400" size={18}/><input className="w-full pl-10 pr-4 py-2 border rounded shadow-sm outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Buscar..." value={searchTerm} onChange={e=>setSearchTerm(e.target.value)}/></div>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                                        {offices.filter(o=>o.name.toLowerCase().includes(searchTerm.toLowerCase())||o.companies?.some(c=>c.name.toLowerCase().includes(searchTerm.toLowerCase()))).map(o => (
-                                            <div key={o.id} className="bg-white rounded border shadow-sm flex flex-col">
-                                                <div className="p-4 border-b bg-slate-50 flex justify-between">
-                                                    <div><h3 className="font-bold">{o.name}</h3><p className="text-xs text-slate-500">{o.address}</p></div>
-                                                    <div className="text-right">{canEdit && <div className="flex gap-1 justify-end mb-1"><button onClick={()=>{setCurrentOffice(o); setOfficeForm(o); setShowOfficeModal(true)}}><Edit size={14} className="text-slate-400 hover:text-indigo-500"/></button><button onClick={()=>deleteOffice(o.id)}><Trash2 size={14} className="text-slate-400 hover:text-red-500"/></button></div>}<span className="text-[10px] bg-white border px-2 py-0.5 rounded font-bold">{(o.companies?.length||0)}/5</span></div>
+                                <div className="max-w-6xl mx-auto space-y-6">
+                                    <div className="relative"><Search className="absolute left-3 top-3 text-slate-400" size={18}/><input className="w-full pl-10 p-3 rounded border shadow-sm outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Buscar oficina o empresa..." value={searchTerm} onChange={e=>setSearchTerm(e.target.value)}/></div>
+                                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                        {offices.filter(o=>o.name.toLowerCase().includes(searchTerm.toLowerCase()) || o.companies?.some(c=>c.name.toLowerCase().includes(searchTerm.toLowerCase()))).map(o=>(
+                                            <div key={o.id} className="bg-white rounded border shadow-sm">
+                                                <div className="p-4 border-b bg-slate-50 flex justify-between items-start">
+                                                    <div><h3 className="font-bold text-lg">{o.name}</h3><p className="text-xs text-slate-500">{o.address}</p></div>
+                                                    <div className="text-right">
+                                                        <span className="text-xs font-bold px-2 py-1 bg-white border rounded">{(o.companies?.length||0)}/5</span>
+                                                        {canEdit && <div className="mt-2 flex gap-2 justify-end"><button onClick={()=>{setCurrentOffice(o); setOfficeForm(o); setShowOfficeModal(true)}}><Edit size={16} className="text-slate-400 hover:text-indigo-600"/></button><button onClick={()=>deleteOffice(o.id)}><Trash2 size={16} className="text-slate-400 hover:text-red-600"/></button></div>}
+                                                    </div>
                                                 </div>
-                                                <div className="p-4 space-y-2 flex-1">
+                                                <div className="p-4 space-y-2">
                                                     {o.companies?.map((c,i)=>(
-                                                        <div key={i} className="border p-2 rounded flex justify-between items-center hover:shadow-sm bg-white">
+                                                        <div key={i} className="border p-2 rounded flex justify-between items-center bg-white hover:shadow-sm">
                                                             <div>
-                                                                <p className="font-bold text-sm flex gap-1 items-center">{c.isLeader && <Crown size={12} className="text-amber-500 fill-amber-500"/>} {c.name}</p>
-                                                                <div className="flex gap-2 text-[10px] text-slate-400 mt-0.5"><span className={c.checklist?.phoneInstalled?'text-emerald-500':'text-slate-300'}>TEL</span><span className={c.checklist?.webCreated?'text-indigo-500':'text-slate-300'}>WEB</span></div>
+                                                                <p className="font-bold text-sm flex items-center gap-1">{c.isLeader && <Crown size={12} className="text-amber-500 fill-amber-500"/>} {c.name}</p>
+                                                                <div className="flex gap-2 text-[10px] text-slate-400"><span className={c.checklist?.phoneInstalled?'text-emerald-500':'text-slate-300'}>TEL</span><span className={c.checklist?.webCreated?'text-indigo-500':'text-slate-300'}>WEB</span></div>
                                                             </div>
-                                                            <div className="flex gap-1">{canEdit ? <><button onClick={()=>openEditCompanyModal(o,c,i)}><Edit size={12} className="text-indigo-400"/></button><button onClick={()=>deleteCompany(o.id,i)}><Trash2 size={12} className="text-red-300 hover:text-red-500"/></button></> : <button onClick={()=>openEditCompanyModal(o,c,i)}><Eye size={12} className="text-slate-400"/></button>}</div>
+                                                            <div className="flex gap-1">{canEdit ? <><button onClick={()=>{setCurrentOffice(o); setCurrentCompany({index:i}); setCompanyForm(c); setShowCompanyModal(true)}}><Edit size={14} className="text-indigo-400"/></button><button onClick={()=>deleteCompany(o.id,i)}><Trash2 size={14} className="text-red-300 hover:text-red-500"/></button></> : <button onClick={()=>{setCurrentOffice(o); setCurrentCompany({index:i}); setCompanyForm(c); setShowCompanyModal(true)}}><Eye size={14} className="text-slate-400"/></button>}</div>
                                                         </div>
                                                     ))}
-                                                    {(!o.companies?.length) && <div className="text-center text-xs text-slate-300 py-4 italic">Vacía</div>}
-                                                    {canEdit && (o.companies?.length||0)<5 && <button onClick={()=>{setCurrentOffice(o); setCurrentCompany(null); setCompanyForm(initialCompanyState); setShowCompanyModal(true)}} className="w-full border-2 border-dashed py-1.5 text-xs text-indigo-400 font-bold hover:bg-indigo-50 rounded">+ Empresa</button>}
+                                                    {(!o.companies?.length) && <div className="text-center text-xs italic text-slate-300 py-2">Vacía</div>}
+                                                    {canEdit && (o.companies?.length||0)<5 && <button onClick={()=>{setCurrentOffice(o); setCurrentCompany(null); setCompanyForm({name:'', isLeader:false, interior:'', assignmentDate:new Date().toISOString().split('T')[0], checklist:{telmexProof:false, fiscalAddressEmail:false, interiorAssigned:false, emailCreated:false, webCreated:false, phoneInstalled:false}, webUrl:'', domainExpirationDate:'', phoneNumber:''}); setShowCompanyModal(true)}} className="w-full border-2 border-dashed py-1 text-xs font-bold text-indigo-400 hover:bg-indigo-50 rounded">Agrega Empresa</button>}
                                                 </div>
                                             </div>
                                         ))}
@@ -409,107 +354,114 @@
                                 </div>
                             )}
 
-                            {/* SOPORTE */}
                             {activeTab === 'support' && (
-                                <div className="max-w-5xl mx-auto">
-                                    {!tickets.length ? (
-                                        <div className="text-center py-20 border-2 border-dashed rounded bg-white"><LifeBuoy className="mx-auto text-slate-300 mb-4" size={48}/><p className="text-slate-500">No hay tickets activos</p></div>
-                                    ) : (
-                                        <div className="space-y-4">
-                                            {tickets.map(t => (
-                                                <div key={t.id} className={`bg-white p-4 rounded border shadow-sm flex gap-4 ${t.status==='resuelto'?'opacity-60':''}`}>
-                                                    <div className={`p-3 rounded-full h-fit shrink-0 ${t.status==='pendiente'?'bg-red-100 text-red-600':t.status==='proceso'?'bg-blue-100 text-blue-600':'bg-emerald-100 text-emerald-600'}`}><AlertCircle/></div>
-                                                    <div className="flex-1">
-                                                        <div className="flex justify-between items-start">
-                                                            <div>
-                                                                <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded mr-2 ${t.priority==='urgente'?'bg-red-500 text-white':'bg-slate-100 text-slate-600'}`}>{t.priority}</span>
-                                                                <h4 className="font-bold text-lg inline">{t.category.toUpperCase()}</h4>
-                                                                <p className="text-slate-600 mt-1">{t.description}</p>
-                                                            </div>
-                                                            <div className="text-right text-xs text-slate-400"><p>{t.officeName}</p><p>{formatDateTime(t.createdAt)}</p></div>
-                                                        </div>
-                                                        {t.updates?.length>0 && <div className="mt-3 bg-slate-50 p-2 rounded text-xs border"><span className="font-bold flex gap-1 items-center mb-1"><History size={10}/> Último avance:</span>"{t.updates[t.updates.length-1].text}"</div>}
-                                                        <div className="mt-3 flex gap-2">
-                                                            <button onClick={()=>{setCurrentTicket(t); setTicketForm({...t, newUpdate:''}); setShowTicketModal(true)}} className="text-xs bg-indigo-600 text-white px-3 py-1.5 rounded font-bold hover:bg-indigo-700">Ver / Atender</button>
-                                                            {canDelete && <button onClick={()=>deleteTicket(t.id)} className="text-xs text-red-400 hover:underline">Eliminar</button>}
-                                                        </div>
+                                <div className="max-w-4xl mx-auto space-y-4">
+                                    {tickets.length===0 ? <div className="text-center py-10 text-slate-400"><LifeBuoy size={40} className="mx-auto mb-2 opacity-50"/><p>No hay tickets activos</p></div> : 
+                                        tickets.map(t => (
+                                            <div key={t.id} className={`bg-white p-4 rounded border shadow-sm flex gap-4 ${t.status==='resuelto'?'opacity-60':''}`}>
+                                                <div className={`p-3 rounded-full h-fit ${t.status==='pendiente'?'bg-red-100 text-red-600':t.status==='proceso'?'bg-blue-100 text-blue-600':'bg-emerald-100 text-emerald-600'}`}><AlertCircle/></div>
+                                                <div className="flex-1">
+                                                    <div className="flex justify-between">
+                                                        <div><span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded mr-2 ${t.priority==='urgente'?'bg-red-500 text-white':'bg-slate-100'}`}>{t.priority}</span><h4 className="font-bold text-lg mt-1">{t.category}</h4></div>
+                                                        <div className="text-right text-xs text-slate-400"><p>{t.officeName}</p><p>{formatDateTime(t.createdAt)}</p></div>
+                                                    </div>
+                                                    <p className="text-sm text-slate-600 mt-2">{t.description}</p>
+                                                    {t.updates?.length>0 && <div className="mt-3 bg-slate-50 p-2 rounded text-xs border"><span className="font-bold flex gap-1 items-center mb-1"><History size={10}/> Último:</span>"{t.updates[t.updates.length-1].text}"</div>}
+                                                    <div className="mt-3 flex gap-2">
+                                                        <button onClick={()=>{setCurrentTicket(t); setTicketForm({...t, newUpdate:''}); setShowTicketModal(true)}} className="bg-indigo-600 text-white px-3 py-1.5 rounded text-xs font-bold hover:bg-indigo-700">Ver / Atender</button>
+                                                        {canDelete && <button onClick={()=>deleteTicket(t.id)} className="text-red-400 text-xs hover:underline">Eliminar</button>}
                                                     </div>
                                                 </div>
-                                            ))}
-                                        </div>
-                                    )}
+                                            </div>
+                                        ))
+                                    }
                                 </div>
                             )}
                         </div>
                     </main>
 
-                    {/* MODALES (Simplificados para esta vista pero 100% funcionales) */}
-                    {(showOfficeModal || showCompanyModal || showTicketModal) && (
-                        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                            <div className="bg-white w-full max-w-lg rounded-xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
-                                <div className="p-4 border-b bg-slate-50 flex justify-between font-bold">
-                                    <span>{showOfficeModal?'Oficina':showCompanyModal?'Empresa':'Ticket'}</span>
-                                    <button onClick={()=>{setShowOfficeModal(false);setShowCompanyModal(false);setShowTicketModal(false)}}><XCircle/></button>
+                    {/* MODAL OFICINA */}
+                    {showOfficeModal && (
+                        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                            <form onSubmit={saveOffice} className="bg-white w-full max-w-md rounded-xl shadow-2xl p-6 space-y-4">
+                                <h3 className="font-bold text-lg border-b pb-2">{currentOffice?'Editar':'Nueva'} Oficina</h3>
+                                <fieldset disabled={!canEdit} className="space-y-3">
+                                    <input className="w-full border p-2 rounded" placeholder="Nombre" value={officeForm.name} onChange={e=>setOfficeForm({...officeForm, name:e.target.value})} required/>
+                                    <input className="w-full border p-2 rounded" placeholder="Dirección" value={officeForm.address} onChange={e=>setOfficeForm({...officeForm, address:e.target.value})} required/>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <input type="date" className="border p-2 rounded w-full" value={officeForm.contractEndDate} onChange={e=>setOfficeForm({...officeForm, contractEndDate:e.target.value})}/>
+                                        <input className="border p-2 rounded w-full" placeholder="Arrendador" value={officeForm.landlordName} onChange={e=>setOfficeForm({...officeForm, landlordName:e.target.value})}/>
+                                    </div>
+                                    <textarea className="w-full border p-2 rounded h-20" placeholder="Notas" value={officeForm.notes} onChange={e=>setOfficeForm({...officeForm, notes:e.target.value})}/>
+                                </fieldset>
+                                <div className="flex justify-end gap-2 pt-2">
+                                    <button type="button" onClick={()=>setShowOfficeModal(false)} className="px-4 py-2 border rounded">Cerrar</button>
+                                    {canEdit && <button className="px-4 py-2 bg-indigo-600 text-white rounded font-bold">Guardar</button>}
                                 </div>
-                                <div className="p-6 overflow-y-auto">
-                                    {showOfficeModal && (
-                                        <form onSubmit={saveOffice} className="space-y-3">
-                                            <fieldset disabled={!canEdit} className="space-y-3">
-                                                <input className="w-full border p-2 rounded" placeholder="Nombre" value={officeForm.name} onChange={e=>setOfficeForm({...officeForm, name:e.target.value})} required/>
-                                                <input className="w-full border p-2 rounded" placeholder="Dirección" value={officeForm.address} onChange={e=>setOfficeForm({...officeForm, address:e.target.value})} required/>
-                                                <div className="grid grid-cols-2 gap-2"><input type="date" className="border p-2 rounded w-full" value={officeForm.contractEndDate} onChange={e=>setOfficeForm({...officeForm, contractEndDate:e.target.value})}/><input className="border p-2 rounded w-full" placeholder="Arrendador" value={officeForm.landlordName} onChange={e=>setOfficeForm({...officeForm, landlordName:e.target.value})}/></div>
-                                                <textarea className="w-full border p-2 rounded h-20" placeholder="Notas" value={officeForm.notes} onChange={e=>setOfficeForm({...officeForm, notes:e.target.value})}/>
-                                            </fieldset>
-                                            <div className="pt-2 flex justify-end gap-2"><button type="button" onClick={()=>setShowOfficeModal(false)} className="px-4 py-2 border rounded">Cerrar</button>{canEdit && <button className="px-4 py-2 bg-indigo-600 text-white rounded font-bold">Guardar</button>}</div>
-                                        </form>
-                                    )}
-                                    {showCompanyModal && (
-                                        <form onSubmit={saveCompany} className="space-y-3">
-                                            <fieldset disabled={!canEdit} className="space-y-3">
-                                                <div className="grid grid-cols-3 gap-2"><input className="col-span-2 border p-2 rounded" placeholder="Nombre Empresa" value={companyForm.name} onChange={e=>setCompanyForm({...companyForm, name:e.target.value})} required/><input className="border p-2 rounded" placeholder="Interior" value={companyForm.interior} onChange={e=>setCompanyForm({...companyForm, interior:e.target.value})}/></div>
-                                                <label className="flex items-center gap-2 text-sm font-bold text-amber-600"><input type="checkbox" checked={companyForm.isLeader} onChange={e=>setCompanyForm({...companyForm, isLeader:e.target.checked})}/> Empresa Líder (Contrato)</label>
-                                                <div className="grid grid-cols-2 gap-2"><input className="border p-2 rounded" placeholder="Teléfono" value={companyForm.phoneNumber} onChange={e=>setCompanyForm({...companyForm, phoneNumber:e.target.value})}/><input className="border p-2 rounded" placeholder="Sitio Web" value={companyForm.webUrl} onChange={e=>setCompanyForm({...companyForm, webUrl:e.target.value})}/></div>
-                                                <div className="bg-slate-50 p-2 rounded border grid grid-cols-2 gap-2 text-xs">
-                                                    {Object.keys(companyForm.checklist).map(k=>(<label key={k} className="flex gap-1 items-center"><input type="checkbox" checked={companyForm.checklist[k]} onChange={e=>setCompanyForm({...companyForm, checklist:{...companyForm.checklist, [k]:e.target.checked}})}/> {k}</label>))}
-                                                </div>
-                                            </fieldset>
-                                            <div className="pt-2 flex justify-end gap-2"><button type="button" onClick={()=>setShowCompanyModal(false)} className="px-4 py-2 border rounded">Cerrar</button>{canEdit && <button className="px-4 py-2 bg-indigo-600 text-white rounded font-bold">Guardar</button>}</div>
-                                        </form>
-                                    )}
-                                    {showTicketModal && (
-                                        <form onSubmit={saveTicket} className="space-y-4">
-                                            {!currentTicket ? (
-                                                <>
-                                                    <div className="grid grid-cols-2 gap-2">
-                                                        <select className="border p-2 rounded w-full" value={ticketForm.category} onChange={e=>setTicketForm({...ticketForm, category:e.target.value})}><option value="internet">Internet</option><option value="telefono">Teléfono</option><option value="otro">Otro</option></select>
-                                                        <select className="border p-2 rounded w-full" value={ticketForm.priority} onChange={e=>setTicketForm({...ticketForm, priority:e.target.value})}><option value="media">Media</option><option value="alta">Alta</option><option value="urgente">Urgente</option></select>
-                                                    </div>
-                                                    <div className="grid grid-cols-2 gap-2">
-                                                        <select className="border p-2 rounded w-full" value={ticketForm.officeId} onChange={e=>{const o=offices.find(x=>x.id===e.target.value);setTicketForm({...ticketForm, officeId:o.id, officeName:o.name, companyName:''})}}><option value="">Oficina...</option>{offices.map(o=><option key={o.id} value={o.id}>{o.name}</option>)}</select>
-                                                        <select className="border p-2 rounded w-full" value={ticketForm.companyName} onChange={e=>setTicketForm({...ticketForm, companyName:e.target.value})} disabled={!ticketForm.officeId}><option value="">Empresa...</option>{offices.find(o=>o.id===ticketForm.officeId)?.companies?.map(c=><option key={c.name} value={c.name}>{c.name}</option>)}</select>
-                                                    </div>
-                                                    <textarea className="w-full border p-2 rounded h-24" placeholder="Descripción del problema..." value={ticketForm.description} onChange={e=>setTicketForm({...ticketForm, description:e.target.value})} required/>
-                                                </>
-                                            ) : (
-                                                <div className="text-sm space-y-3">
-                                                    <div className="bg-slate-50 p-3 rounded border"><strong>Problema:</strong> {ticketForm.description}</div>
-                                                    <div className="max-h-40 overflow-y-auto space-y-2">
-                                                        {ticketForm.updates?.map((u,i)=>(<div key={i} className="bg-white border p-2 rounded text-xs"><div className="flex justify-between font-bold text-slate-400"><span>{u.author}</span><span>{formatDateTime(u.date)}</span></div><p>{u.text}</p></div>))}
-                                                    </div>
-                                                    {ticketForm.status!=='resuelto' && (
-                                                        <div className="bg-indigo-50 p-3 rounded border border-indigo-100">
-                                                            <label className="font-bold text-indigo-900 block mb-1">Nuevo Avance:</label>
-                                                            <textarea className="w-full border p-2 rounded bg-white" rows="2" value={ticketForm.newUpdate} onChange={e=>setTicketForm({...ticketForm, newUpdate:e.target.value})}/>
-                                                            <div className="flex items-center gap-2 mt-2 justify-end"><label>Estado:</label><select className="border p-1 rounded text-xs" value={ticketForm.status} onChange={e=>setTicketForm({...ticketForm, status:e.target.value})}><option value="pendiente">Pendiente</option><option value="proceso">Proceso</option><option value="resuelto">Resolver</option></select></div>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            )}
-                                            <div className="pt-2 flex justify-end gap-2"><button type="button" onClick={()=>setShowTicketModal(false)} className="px-4 py-2 border rounded">Cerrar</button>{(!currentTicket || ticketForm.status!=='resuelto' || ticketForm.newUpdate) && <button className="px-4 py-2 bg-indigo-600 text-white rounded font-bold">Guardar</button>}</div>
-                                        </form>
-                                    )}
+                            </form>
+                        </div>
+                    )}
+
+                    {/* MODAL EMPRESA */}
+                    {showCompanyModal && (
+                        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                            <form onSubmit={saveCompany} className="bg-white w-full max-w-lg rounded-xl shadow-2xl p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+                                <h3 className="font-bold text-lg border-b pb-2">{currentCompany?'Editar':'Nueva'} Empresa</h3>
+                                <fieldset disabled={!canEdit} className="space-y-3">
+                                    <div className="grid grid-cols-3 gap-2">
+                                        <input className="col-span-2 border p-2 rounded" placeholder="Nombre" value={companyForm.name} onChange={e=>setCompanyForm({...companyForm, name:e.target.value})} required/>
+                                        <input className="border p-2 rounded" placeholder="Interior" value={companyForm.interior} onChange={e=>setCompanyForm({...companyForm, interior:e.target.value})}/>
+                                    </div>
+                                    <label className="flex items-center gap-2 text-sm font-bold text-amber-600"><input type="checkbox" checked={companyForm.isLeader} onChange={e=>setCompanyForm({...companyForm, isLeader:e.target.checked})}/> Empresa Líder</label>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <input className="border p-2 rounded" placeholder="Teléfono" value={companyForm.phoneNumber} onChange={e=>setCompanyForm({...companyForm, phoneNumber:e.target.value})}/>
+                                        <input className="border p-2 rounded" placeholder="Web URL" value={companyForm.webUrl} onChange={e=>setCompanyForm({...companyForm, webUrl:e.target.value})}/>
+                                        <div className="col-span-2 text-xs font-bold text-slate-500 mt-2">Checklist de Alta:</div>
+                                        {Object.keys(companyForm.checklist).map(k=>(<label key={k} className="flex gap-2 items-center text-sm capitalize"><input type="checkbox" checked={companyForm.checklist[k]} onChange={e=>setCompanyForm({...companyForm, checklist:{...companyForm.checklist, [k]:e.target.checked}})}/> {k.replace(/([A-Z])/g, ' $1')}</label>))}
+                                    </div>
+                                </fieldset>
+                                <div className="flex justify-end gap-2 pt-2">
+                                    <button type="button" onClick={()=>setShowCompanyModal(false)} className="px-4 py-2 border rounded">Cerrar</button>
+                                    {canEdit && <button className="px-4 py-2 bg-indigo-600 text-white rounded font-bold">Guardar</button>}
                                 </div>
-                            </div>
+                            </form>
+                        </div>
+                    )}
+
+                    {/* MODAL TICKET */}
+                    {showTicketModal && (
+                        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                            <form onSubmit={saveTicket} className="bg-white w-full max-w-lg rounded-xl shadow-2xl p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+                                <h3 className="font-bold text-lg border-b pb-2">{currentTicket?'Atender':'Nuevo'} Ticket</h3>
+                                {!currentTicket ? (
+                                    <>
+                                        <div className="grid grid-cols-2 gap-2">
+                                            <select className="border p-2 rounded" value={ticketForm.category} onChange={e=>setTicketForm({...ticketForm, category:e.target.value})}><option value="internet">Internet</option><option value="telefono">Teléfono</option><option value="otro">Otro</option></select>
+                                            <select className="border p-2 rounded" value={ticketForm.priority} onChange={e=>setTicketForm({...ticketForm, priority:e.target.value})}><option value="media">Media</option><option value="alta">Alta</option><option value="urgente">Urgente</option></select>
+                                        </div>
+                                        <select className="border p-2 rounded w-full" value={ticketForm.officeId} onChange={e=>{const o=offices.find(x=>x.id===e.target.value); setTicketForm({...ticketForm, officeId:o.id, officeName:o.name, companyName:''})}} required><option value="">Selecciona Oficina...</option>{offices.map(o=><option key={o.id} value={o.id}>{o.name}</option>)}</select>
+                                        <textarea className="w-full border p-2 rounded h-24" placeholder="Descripción..." value={ticketForm.description} onChange={e=>setTicketForm({...ticketForm, description:e.target.value})} required/>
+                                    </>
+                                ) : (
+                                    <div className="space-y-3">
+                                        <div className="bg-slate-50 p-3 rounded border text-sm italic">"{ticketForm.description}"</div>
+                                        <div className="max-h-40 overflow-y-auto space-y-2 border-t pt-2">
+                                            {ticketForm.updates?.map((u,i)=>(<div key={i} className="text-xs bg-white border p-2 rounded"><div className="flex justify-between font-bold text-slate-400"><span>{u.author}</span><span>{formatDateTime(u.date)}</span></div><p>{u.text}</p></div>))}
+                                        </div>
+                                        {ticketForm.status!=='resuelto' && (
+                                            <div className="bg-indigo-50 p-3 rounded border border-indigo-100">
+                                                <label className="font-bold text-indigo-900 text-sm">Nuevo Avance:</label>
+                                                <textarea className="w-full border p-2 rounded bg-white mt-1" rows="2" value={ticketForm.newUpdate} onChange={e=>setTicketForm({...ticketForm, newUpdate:e.target.value})}/>
+                                                <div className="flex items-center justify-end gap-2 mt-2"><label className="text-xs">Estado:</label><select className="border p-1 rounded text-xs" value={ticketForm.status} onChange={e=>setTicketForm({...ticketForm, status:e.target.value})}><option value="pendiente">Pendiente</option><option value="proceso">Proceso</option><option value="resuelto">Resolver</option></select></div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                                <div className="flex justify-end gap-2 pt-2">
+                                    <button type="button" onClick={()=>setShowTicketModal(false)} className="px-4 py-2 border rounded">Cerrar</button>
+                                    {(!currentTicket || ticketForm.status!=='resuelto' || ticketForm.newUpdate) && <button className="px-4 py-2 bg-indigo-600 text-white rounded font-bold">Guardar</button>}
+                                </div>
+                            </form>
                         </div>
                     )}
                 </div>
