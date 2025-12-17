@@ -53,7 +53,7 @@
     <div id="root">
         <div class="h-screen flex flex-col items-center justify-center text-slate-400 gap-4">
             <div class="loading-spinner"></div>
-            <p class="text-sm">Cargando sistema...</p>
+            <p class="text-sm">Sorbito de café...</p>
         </div>
     </div>
 
@@ -465,7 +465,7 @@
                 });
                 const link = document.createElement("a");
                 link.href = URL.createObjectURL(new Blob([`\uFEFF${csv}`], {type:'text/csv'}));
-                link.download = "Reporte_controlempresas.csv";
+                link.download = "Reporte_ControlEmpresas.csv";
                 link.click();
             };
 
@@ -495,13 +495,13 @@
                         <div className="p-6 border-b border-slate-800 flex items-center justify-between">
                             <div className="flex items-center gap-3">
                                 <div className="bg-indigo-600 p-2 rounded-lg"><Building2 size={20}/></div>
-                                <div><h1 className="font-bold tracking-wider">Control</h1><p className="text-[10px] text-indigo-400 uppercase tracking-widest">Aperturas</p></div>
+                                <div><h1 className="font-bold tracking-wider">Control</h1><p className="text-[10px] text-indigo-400 uppercase tracking-widest">Empresas</p></div>
                             </div>
                             <button onClick={()=>setMobileMenuOpen(false)} className="md:hidden text-slate-400"><X size={20}/></button>
                         </div>
                         <div className="px-6 py-4 border-b border-slate-800/50">
                             <div className="flex items-center gap-3 mb-1"><div className="bg-slate-700 p-1.5 rounded-full"><User size={14}/></div><p className="text-xs font-medium truncate w-32" title={user.email}>{user.email}</p></div>
-                            <span className={`text-[10px] px-2 py-0.5 rounded-full uppercase font-bold tracking-wide ${userRole==='admin' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-blue-500/20 text-blue-400'}`}>{userRole === 'admin' ? 'Administrador' : 'Modo Lectura'}</span>
+                            <span className={`text-[10px] px-2 py-0.5 rounded-full uppercase font-bold tracking-wide ${userRole==='admin' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-blue-500/20 text-blue-400'}`}>{userRole === 'admin' ? 'Administrador' : 'Consultor'}</span>
                         </div>
                         <nav className="p-4 space-y-1 flex-1">
                             <button onClick={()=>{setTab('dashboard');setMobileMenuOpen(false)}} className={`w-full flex gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${tab==='dashboard'?'bg-indigo-600 text-white':'text-slate-400 hover:bg-slate-800 hover:text-white'}`}><LayoutDashboard size={18}/> Tablero</button>
@@ -532,11 +532,11 @@
                                 )}
 
                                 <button onClick={exportExcel} className="hidden md:flex bg-emerald-600 text-white px-3 py-2 rounded-lg gap-2 items-center text-xs font-bold hover:bg-emerald-700 transition"><Download size={16}/> Reporte</button>
-                                {userRole === 'admin' && (
-                                    <>
-                                        {tab === 'offices' && <button onClick={()=>{setForms({...forms, office: {name:'', address:'', contractEndDate:'', signerName:'', landlordName:'', landlordPhone:'', landlordEmail:'', rentAmount:'', invoiceAmount:'', servicesIncluded:{water:false, light:false, maintenance:false}, notes:'', companies:[], status: 'active'}}); setModal({type:'office', data:null})}} className="bg-indigo-600 text-white px-3 py-2 rounded-lg flex gap-2 items-center text-xs md:text-sm font-bold hover:bg-indigo-700 transition"><Plus size={16}/><span className="hidden md:inline">Nueva Oficina</span></button>}
-                                        {tab === 'tickets' && <button onClick={()=>{setForms({...forms, ticket: {officeId:'', companyId:'', isGeneralIssue: false, category:'Falla de Internet', priority:'media', description:'', status:'pendiente', updates:[], newUpdate:''}}); setModal({type:'ticket', data:null})}} className="bg-indigo-600 text-white px-3 py-2 rounded-lg flex gap-2 items-center text-xs md:text-sm font-bold hover:bg-indigo-700 transition"><Plus size={16}/><span className="hidden md:inline">Nuevo Ticket</span></button>}
-                                    </>
+                                {userRole === 'admin' && tab === 'offices' && (
+                                    <button onClick={()=>{setForms({...forms, office: {name:'', address:'', contractEndDate:'', signerName:'', landlordName:'', landlordPhone:'', landlordEmail:'', rentAmount:'', invoiceAmount:'', servicesIncluded:{water:false, light:false, maintenance:false}, notes:'', companies:[], status: 'active'}}); setModal({type:'office', data:null})}} className="bg-indigo-600 text-white px-3 py-2 rounded-lg flex gap-2 items-center text-xs md:text-sm font-bold hover:bg-indigo-700 transition"><Plus size={16}/><span className="hidden md:inline">Nueva Oficina</span></button>
+                                )}
+                                {tab === 'tickets' && (
+                                    <button onClick={()=>{setForms({...forms, ticket: {officeId:'', companyId:'', isGeneralIssue: false, category:'Falla de Internet', priority:'media', description:'', status:'pendiente', updates:[], newUpdate:''}}); setModal({type:'ticket', data:null})}} className="bg-indigo-600 text-white px-3 py-2 rounded-lg flex gap-2 items-center text-xs md:text-sm font-bold hover:bg-indigo-700 transition"><Plus size={16}/><span className="hidden md:inline">Nuevo Ticket</span></button>
                                 )}
                             </div>
                         </header>
@@ -556,7 +556,7 @@
                                             <h3 className="font-bold text-slate-800 flex gap-2 items-center"><Building2 size={18}/> Resumen de Arrendamientos</h3>
                                         </div>
                                         <div className="overflow-x-auto">
-                                            <table className="w-full text-left text-sm">
+                                            <table className="w-full text-left text-sm min-w-[600px]">
                                                 <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-xs">
                                                     <tr>
                                                         <th className="p-4">Oficina</th>
@@ -647,7 +647,7 @@
                             )}
 
                             {tab === 'offices' && (
-                                <div className="grid gap-6 max-w-5xl mx-auto animate-[fadeIn_0.3s_ease-out]">
+                                <div className="grid gap-6 grid-cols-1 lg:grid-cols-2 max-w-7xl mx-auto animate-[fadeIn_0.3s_ease-out]">
                                     {visibleOffices.map(o => {
                                         const progress = calculateProgress(o);
                                         const isArchivedOffice = o.status === 'archived';
@@ -679,9 +679,9 @@
                                             
                                             {isExpanded && (
                                                 <div className="border-t border-slate-100 animate-[fadeIn_0.2s_ease-out]">
-                                                    <div className="bg-slate-50 px-5 py-3 border-b border-slate-100 flex justify-between items-center">
+                                                    <div className="bg-slate-50 px-5 py-3 border-b border-slate-100 flex flex-col sm:flex-row gap-3 sm:items-center justify-between">
                                                         {!isArchivedOffice && (
-                                                            <div className="flex-1 mr-8">
+                                                            <div className="flex-1 sm:mr-8 w-full">
                                                                 <div className="flex justify-between items-center mb-1">
                                                                     <span className="text-[10px] font-bold text-slate-500 uppercase">Checklist General</span>
                                                                     <span className={`text-[10px] font-bold ${progress === 100 ? 'text-emerald-600' : 'text-indigo-600'}`}>{progress}%</span>
@@ -692,9 +692,9 @@
                                                             </div>
                                                         )}
                                                         {userRole === 'admin' && !isArchivedOffice && (
-                                                            <div className="flex gap-2">
-                                                                <button onClick={(e)=>{e.stopPropagation(); setForms({...forms, office:o}); setModal({type:'office', data:o})}} className="text-xs flex gap-1 items-center bg-white border border-slate-200 px-3 py-1.5 rounded font-bold hover:text-indigo-600 hover:border-indigo-200 shadow-sm transition"><Edit size={12}/> Editar Oficina</button>
-                                                                <button onClick={(e)=>{e.stopPropagation(); setArchiveModal({type:'office', data:o}); setArchiveReason('')}} className="text-xs flex gap-1 items-center bg-white border border-slate-200 px-3 py-1.5 rounded font-bold text-slate-500 hover:text-red-500 hover:border-red-200 shadow-sm transition"><Trash2 size={12}/> Dar de Baja</button>
+                                                            <div className="flex gap-2 w-full sm:w-auto">
+                                                                <button onClick={(e)=>{e.stopPropagation(); setForms({...forms, office:o}); setModal({type:'office', data:o})}} className="flex-1 sm:flex-none text-xs flex gap-1 items-center justify-center bg-white border border-slate-200 px-3 py-1.5 rounded font-bold hover:text-indigo-600 hover:border-indigo-200 shadow-sm transition"><Edit size={12}/> Editar Oficina</button>
+                                                                <button onClick={(e)=>{e.stopPropagation(); setArchiveModal({type:'office', data:o}); setArchiveReason('')}} className="flex-1 sm:flex-none text-xs flex gap-1 items-center justify-center bg-white border border-slate-200 px-3 py-1.5 rounded font-bold text-slate-500 hover:text-red-500 hover:border-red-200 shadow-sm transition"><Trash2 size={12}/> Dar de Baja</button>
                                                             </div>
                                                         )}
                                                     </div>
@@ -715,7 +715,7 @@
                                                                             {isArchivedCompany && <span className="text-[10px] bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded border">Baja</span>}
                                                                         </p>
                                                                         {!isArchivedCompany ? (
-                                                                            <div className="flex gap-2 text-xs text-slate-400 mt-0.5">
+                                                                            <div className="flex flex-wrap gap-2 text-xs text-slate-400 mt-0.5">
                                                                                 {c.webUrl && <a href={c.webUrl} target="_blank" className="hover:text-indigo-500 flex items-center gap-1"><Globe size={10}/> Web</a>}
                                                                                 {c.phoneNumber && <span className="flex items-center gap-1"><Phone size={10}/> {c.phoneNumber}</span>}
                                                                             </div>
@@ -725,7 +725,7 @@
                                                                     </div>
                                                                 </div>
                                                                 {userRole === 'admin' && !isArchivedCompany && !isArchivedOffice && (
-                                                                    <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                    <div className="flex gap-2 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                                                                         <button onClick={()=>{setForms({...forms, company:c}); setModal({type:'company', parent:o, data:{idx:i}})}} className="text-xs bg-white border px-3 py-1.5 rounded font-bold hover:text-indigo-600 shadow-sm">Editar</button>
                                                                         <button onClick={()=>{setArchiveModal({type:'company', data:{...c, idx:i}, parentId:o.id}); setArchiveReason('')}} className="text-red-400 hover:bg-red-50 p-1.5 rounded"><Trash2 size={14}/></button>
                                                                     </div>
@@ -745,7 +745,7 @@
                             )}
 
                             {tab === 'tickets' && (
-                                <div className="space-y-4 max-w-4xl mx-auto animate-[fadeIn_0.3s_ease-out]">
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-7xl mx-auto animate-[fadeIn_0.3s_ease-out]">
                                     {items.tickets.map(t => {
                                         const isResolved = t.status === 'resuelto';
                                         
@@ -758,46 +758,33 @@
                                                     </div>
                                                     <div>
                                                         <div className="flex gap-2 items-center mb-1 flex-wrap">
-                                                            <span className="font-bold text-slate-800 uppercase text-sm tracking-wide">{t.category}</span>
-                                                            <span className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase ${t.priority==='urgente'?'bg-red-500 text-white':'bg-slate-100 text-slate-500'}`}>{t.priority}</span>
-                                                            <span className="text-[10px] text-slate-400 bg-slate-50 px-2 py-0.5 rounded border">{t.officeName}</span>
+                                                            <span className="font-bold text-slate-800 uppercase text-xs tracking-wide">{t.category}</span>
+                                                            <span className={`text-[9px] px-2 py-0.5 rounded font-bold uppercase ${t.priority==='urgente'?'bg-red-500 text-white':'bg-slate-100 text-slate-500'}`}>{t.priority}</span>
                                                         </div>
-                                                        <p className="text-xs text-slate-500 font-bold mb-1">
-                                                            Empresa: {t.companyName || 'General'} 
-                                                            {t.assignedTo && <span className="ml-2 bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full font-normal">Asignado a: {t.assignedTo}</span>}
+                                                        <p className="text-xs text-slate-500 font-bold mb-1 truncate max-w-[180px]">
+                                                            {t.companyName || 'General'} 
                                                         </p>
-                                                        <p className="text-sm text-slate-600 leading-relaxed">{t.description}</p>
+                                                        <p className="text-sm text-slate-600 leading-relaxed line-clamp-2">{t.description}</p>
                                                     </div>
                                                 </div>
                                                 <div className="flex flex-col items-end gap-2">
-                                                    <p className="text-[10px] text-slate-300">{formatDateTime(t.createdAt)}</p>
                                                     {userRole === 'admin' && <button onClick={()=>deleteItem('tickets', t.id)} className="text-slate-300 hover:text-red-500"><Trash2 size={16}/></button>}
                                                 </div>
                                             </div>
 
-                                            {/* Historial de Ticket */}
-                                            {t.updates && t.updates.length > 0 && (
-                                                <div className="bg-slate-50 rounded-lg p-3 text-xs space-y-2 mb-3 border border-slate-100">
-                                                    {t.updates.map((u, idx) => (
-                                                        <div key={idx} className="border-l-2 border-indigo-200 pl-2">
-                                                            <p className="font-bold text-slate-500 flex justify-between">{u.author} <span className="font-normal opacity-50">{formatDateTime(u.date)}</span></p>
-                                                            <p className="text-slate-700">{u.text}</p>
-                                                        </div>
-                                                    ))}
+                                            {/* Footer del Ticket */}
+                                            <div className="mt-auto pt-3 border-t border-slate-50 flex justify-between items-center">
+                                                <div className="flex flex-col">
+                                                    <span className="text-[10px] text-slate-400">{formatDateTime(t.createdAt)}</span>
+                                                    {t.assignedTo && <span className="text-[10px] text-indigo-500 font-medium">Asignado: {t.assignedTo}</span>}
                                                 </div>
-                                            )}
-
-                                            <div className="flex justify-between items-center pt-3 border-t border-slate-50">
+                                                
                                                 <button 
                                                     onClick={()=>{setForms({...forms, ticket: {...t, newUpdate: ''}}); setModal({type:'ticket', data:t})}} 
                                                     className={`text-xs px-3 py-1.5 rounded font-bold transition ${isResolved ? 'bg-slate-100 text-slate-500 hover:bg-slate-200' : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'}`}
                                                 >
-                                                    {isResolved ? 'Ver Detalles / Reabrir' : 'Ver / Responder'}
+                                                    {isResolved ? 'Detalles' : 'Gestionar'}
                                                 </button>
-                                                
-                                                <span className={`text-xs font-bold px-2 py-1 rounded uppercase ${t.status==='pendiente'?'bg-red-100 text-red-600':t.status==='proceso'?'bg-amber-100 text-amber-600':'bg-emerald-100 text-emerald-600'}`}>
-                                                    {t.status}
-                                                </span>
                                             </div>
                                         </div>
                                     )})}
@@ -845,35 +832,35 @@
                                 
                                 {modal.type === 'office' && (
                                     <div className="space-y-6">
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div className="space-y-1 col-span-2"><label className="text-xs font-bold text-slate-500 uppercase">Nombre Oficina</label><input className="border w-full p-2.5 rounded-lg bg-slate-50 focus:bg-white outline-none text-sm" placeholder="Ej. Torre A" value={forms.office.name} onChange={e=>setForms(f=>({...f, office:{...f.office, name:e.target.value}}))}/></div>
-                                            <div className="space-y-1 col-span-2"><label className="text-xs font-bold text-slate-500 uppercase">Dirección Completa</label><input className="border w-full p-2.5 rounded-lg bg-slate-50 focus:bg-white outline-none text-sm" placeholder="Calle, Número, Colonia" value={forms.office.address} onChange={e=>setForms(f=>({...f, office:{...f.office, address:e.target.value}}))}/></div>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                            <div className="space-y-1 sm:col-span-2"><label className="text-xs font-bold text-slate-500 uppercase">Nombre Oficina</label><input className="border w-full p-2.5 rounded-lg bg-slate-50 focus:bg-white outline-none text-sm" placeholder="Ej. Torre A" value={forms.office.name} onChange={e=>setForms(f=>({...f, office:{...f.office, name:e.target.value}}))}/></div>
+                                            <div className="space-y-1 sm:col-span-2"><label className="text-xs font-bold text-slate-500 uppercase">Dirección Completa</label><input className="border w-full p-2.5 rounded-lg bg-slate-50 focus:bg-white outline-none text-sm" placeholder="Calle, Número, Colonia" value={forms.office.address} onChange={e=>setForms(f=>({...f, office:{...f.office, address:e.target.value}}))}/></div>
                                             
                                             {/* DATOS CONTRATO */}
                                             <div className="space-y-1"><label className="text-xs font-bold text-slate-500 uppercase">Fin de Contrato</label><input type="date" className="border w-full p-2.5 rounded-lg bg-slate-50 focus:bg-white outline-none text-sm" value={forms.office.contractEndDate} onChange={e=>setForms(f=>({...f, office:{...f.office, contractEndDate:e.target.value}}))}/></div>
                                             <div className="space-y-1"><label className="text-xs font-bold text-slate-500 uppercase">Nombre quien firma</label><input className="border w-full p-2.5 rounded-lg bg-slate-50 focus:bg-white outline-none text-sm" placeholder="Representante Legal" value={forms.office.signerName} onChange={e=>setForms(f=>({...f, office:{...f.office, signerName:e.target.value}}))}/></div>
 
                                             {/* DATOS ARRENDADOR */}
-                                            <div className="col-span-2 border-t pt-2 mt-2"><h4 className="text-xs font-bold text-indigo-900 uppercase mb-2 flex gap-1"><User size={14}/> Datos del Arrendador</h4></div>
+                                            <div className="sm:col-span-2 border-t pt-2 mt-2"><h4 className="text-xs font-bold text-indigo-900 uppercase mb-2 flex gap-1"><User size={14}/> Datos del Arrendador</h4></div>
                                             <div className="space-y-1"><label className="text-xs font-bold text-slate-500 uppercase">Nombre Arrendador</label><input className="border w-full p-2.5 rounded-lg bg-slate-50 focus:bg-white outline-none text-sm" placeholder="Propietario / Inmobiliaria" value={forms.office.landlordName} onChange={e=>setForms(f=>({...f, office:{...f.office, landlordName:e.target.value}}))}/></div>
                                             <div className="space-y-1"><label className="text-xs font-bold text-slate-500 uppercase">Teléfono Contacto</label><input className="border w-full p-2.5 rounded-lg bg-slate-50 focus:bg-white outline-none text-sm" value={forms.office.landlordPhone} onChange={e=>setForms(f=>({...f, office:{...f.office, landlordPhone:e.target.value}}))}/></div>
-                                            <div className="space-y-1 col-span-2"><label className="text-xs font-bold text-slate-500 uppercase">Correo Electrónico</label><input className="border w-full p-2.5 rounded-lg bg-slate-50 focus:bg-white outline-none text-sm" value={forms.office.landlordEmail} onChange={e=>setForms(f=>({...f, office:{...f.office, landlordEmail:e.target.value}}))}/></div>
+                                            <div className="space-y-1 sm:col-span-2"><label className="text-xs font-bold text-slate-500 uppercase">Correo Electrónico</label><input className="border w-full p-2.5 rounded-lg bg-slate-50 focus:bg-white outline-none text-sm" value={forms.office.landlordEmail} onChange={e=>setForms(f=>({...f, office:{...f.office, landlordEmail:e.target.value}}))}/></div>
 
                                             {/* DATOS FINANCIEROS */}
-                                            <div className="col-span-2 border-t pt-2 mt-2"><h4 className="text-xs font-bold text-indigo-900 uppercase mb-2 flex gap-1"><DollarSign size={14}/> Datos Financieros</h4></div>
+                                            <div className="sm:col-span-2 border-t pt-2 mt-2"><h4 className="text-xs font-bold text-indigo-900 uppercase mb-2 flex gap-1"><DollarSign size={14}/> Datos Financieros</h4></div>
                                             <div className="space-y-1"><label className="text-xs font-bold text-slate-500 uppercase">Monto Renta Mensual</label><input className="border w-full p-2.5 rounded-lg bg-slate-50 focus:bg-white outline-none text-sm" type="number" placeholder="$0.00" value={forms.office.rentAmount} onChange={e=>setForms(f=>({...f, office:{...f.office, rentAmount:e.target.value}}))}/></div>
                                             <div className="space-y-1"><label className="text-xs font-bold text-slate-500 uppercase">Monto Pago Factura</label><input className="border w-full p-2.5 rounded-lg bg-slate-50 focus:bg-white outline-none text-sm" type="number" placeholder="$0.00" value={forms.office.invoiceAmount} onChange={e=>setForms(f=>({...f, office:{...f.office, invoiceAmount:e.target.value}}))}/></div>
                                             
-                                            <div className="col-span-2 bg-slate-50 p-3 rounded-lg border border-slate-200">
+                                            <div className="sm:col-span-2 bg-slate-50 p-3 rounded-lg border border-slate-200">
                                                 <label className="text-xs font-bold text-slate-500 uppercase block mb-2">Servicios Incluidos en Renta:</label>
-                                                <div className="flex gap-4">
+                                                <div className="flex flex-wrap gap-4">
                                                     <label className="flex items-center gap-2 text-sm cursor-pointer"><input type="checkbox" className="accent-indigo-600" checked={forms.office.servicesIncluded?.water} onChange={e=>setForms(f=>({...f, office:{...f.office, servicesIncluded:{...f.office.servicesIncluded, water:e.target.checked}}}))}/> <Droplets size={14}/> Agua</label>
                                                     <label className="flex items-center gap-2 text-sm cursor-pointer"><input type="checkbox" className="accent-indigo-600" checked={forms.office.servicesIncluded?.light} onChange={e=>setForms(f=>({...f, office:{...f.office, servicesIncluded:{...f.office.servicesIncluded, light:e.target.checked}}}))}/> <Zap size={14}/> Luz</label>
                                                     <label className="flex items-center gap-2 text-sm cursor-pointer"><input type="checkbox" className="accent-indigo-600" checked={forms.office.servicesIncluded?.maintenance} onChange={e=>setForms(f=>({...f, office:{...f.office, servicesIncluded:{...f.office.servicesIncluded, maintenance:e.target.checked}}}))}/> <Wrench size={14}/> Mantenimiento</label>
                                                 </div>
                                             </div>
 
-                                            <div className="space-y-1 col-span-2"><label className="text-xs font-bold text-slate-500 uppercase">Notas Adicionales</label><textarea className="border w-full p-2.5 rounded-lg bg-slate-50 focus:bg-white outline-none h-16 text-sm" placeholder="Accesos, claves, observaciones..." value={forms.office.notes} onChange={e=>setForms(f=>({...f, office:{...f.office, notes:e.target.value}}))}/></div>
+                                            <div className="space-y-1 sm:col-span-2"><label className="text-xs font-bold text-slate-500 uppercase">Notas Adicionales</label><textarea className="border w-full p-2.5 rounded-lg bg-slate-50 focus:bg-white outline-none h-16 text-sm" placeholder="Accesos, claves, observaciones..." value={forms.office.notes} onChange={e=>setForms(f=>({...f, office:{...f.office, notes:e.target.value}}))}/></div>
                                         </div>
                                         <div className="flex justify-end gap-3 pt-4 border-t mt-2"><button onClick={()=>setModal(null)} className="px-5 py-2.5 border border-slate-200 text-slate-600 font-medium rounded-lg hover:bg-slate-50">Cancelar</button><button onClick={saveOffice} className="px-5 py-2.5 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700">Guardar</button></div>
                                     </div>
@@ -902,31 +889,31 @@
                                         {/* SECCION 1: DATOS GENERALES */}
                                         <div>
                                             <h4 className="text-xs font-bold text-indigo-900 uppercase mb-3 pb-1 border-b border-indigo-100 flex items-center gap-2"><Building size={14}/> Datos Generales</h4>
-                                            <div className="grid grid-cols-2 gap-4">
-                                                <div className="space-y-1 col-span-2"><label className="text-xs font-bold text-slate-500 uppercase">Nombre Empresa</label><input className="border w-full p-2.5 rounded-lg bg-slate-50 focus:bg-white outline-none text-sm" value={forms.company.name} onChange={e=>setForms(f=>({...f, company:{...f.company, name:e.target.value}}))}/></div>
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                                <div className="space-y-1 sm:col-span-2"><label className="text-xs font-bold text-slate-500 uppercase">Nombre Empresa</label><input className="border w-full p-2.5 rounded-lg bg-slate-50 focus:bg-white outline-none text-sm" value={forms.company.name} onChange={e=>setForms(f=>({...f, company:{...f.company, name:e.target.value}}))}/></div>
                                                 <div className="space-y-1"><label className="text-xs font-bold text-slate-500 uppercase">Teléfono Oficina</label><input className="border w-full p-2.5 rounded-lg bg-slate-50 focus:bg-white outline-none text-sm" value={forms.company.phoneNumber} onChange={e=>setForms(f=>({...f, company:{...f.company, phoneNumber:e.target.value}}))}/></div>
                                                 <div className="space-y-1"><label className="text-xs font-bold text-slate-500 uppercase">Interior / Suite</label><input className="border w-full p-2.5 rounded-lg bg-slate-50 focus:bg-white outline-none text-sm" value={forms.company.interior} onChange={e=>setForms(f=>({...f, company:{...f.company, interior:e.target.value}}))}/></div>
-                                                <div className="space-y-1 col-span-2"><label className="text-xs font-bold text-slate-500 uppercase">Sitio Web</label><input className="border w-full p-2.5 rounded-lg bg-slate-50 focus:bg-white outline-none text-sm" value={forms.company.webUrl} onChange={e=>setForms(f=>({...f, company:{...f.company, webUrl:e.target.value}}))}/></div>
-                                                <div className="space-y-1 col-span-2"><label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-2"><Calendar size={12}/> Vencimiento Dominio</label><input type="date" className="border w-full p-2.5 rounded-lg bg-slate-50 focus:bg-white outline-none text-sm" value={forms.company.domainExpirationDate} onChange={e=>setForms(f=>({...f, company:{...f.company, domainExpirationDate:e.target.value}}))}/></div>
+                                                <div className="space-y-1 sm:col-span-2"><label className="text-xs font-bold text-slate-500 uppercase">Sitio Web</label><input className="border w-full p-2.5 rounded-lg bg-slate-50 focus:bg-white outline-none text-sm" value={forms.company.webUrl} onChange={e=>setForms(f=>({...f, company:{...f.company, webUrl:e.target.value}}))}/></div>
+                                                <div className="space-y-1 sm:col-span-2"><label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-2"><Calendar size={12}/> Vencimiento Dominio</label><input type="date" className="border w-full p-2.5 rounded-lg bg-slate-50 focus:bg-white outline-none text-sm" value={forms.company.domainExpirationDate} onChange={e=>setForms(f=>({...f, company:{...f.company, domainExpirationDate:e.target.value}}))}/></div>
                                             </div>
                                         </div>
 
                                         {/* SECCION 2: DATOS FISCALES Y LEGALES */}
                                         <div>
                                             <h4 className="text-xs font-bold text-indigo-900 uppercase mb-3 pb-1 border-b border-indigo-100 flex items-center gap-2"><FileText size={14}/> Datos Fiscales y Legales</h4>
-                                            <div className="grid grid-cols-2 gap-4">
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                                 <div className="space-y-1"><label className="text-xs font-bold text-slate-500 uppercase">RFC</label><input className="border w-full p-2.5 rounded-lg bg-slate-50 focus:bg-white outline-none text-sm" value={forms.company.rfc} onChange={e=>setForms(f=>({...f, company:{...f.company, rfc:e.target.value}}))}/></div>
                                                 <div className="space-y-1"><label className="text-xs font-bold text-slate-500 uppercase">Representante Legal (Firma)</label><input className="border w-full p-2.5 rounded-lg bg-slate-50 focus:bg-white outline-none text-sm" value={forms.company.legalRep} onChange={e=>setForms(f=>({...f, company:{...f.company, legalRep:e.target.value}}))}/></div>
-                                                <div className="space-y-1 col-span-2"><label className="text-xs font-bold text-slate-500 uppercase">Dirección Fiscal</label><input className="border w-full p-2.5 rounded-lg bg-slate-50 focus:bg-white outline-none text-sm" value={forms.company.fiscalAddress} onChange={e=>setForms(f=>({...f, company:{...f.company, fiscalAddress:e.target.value}}))}/></div>
-                                                <div className="space-y-1 col-span-2"><label className="text-xs font-bold text-slate-500 uppercase">Dirección Comprobante Domicilio</label><input className="border w-full p-2.5 rounded-lg bg-slate-50 focus:bg-white outline-none text-sm" value={forms.company.proofAddress} onChange={e=>setForms(f=>({...f, company:{...f.company, proofAddress:e.target.value}}))}/></div>
-                                                <div className="space-y-1 col-span-2"><label className="text-xs font-bold text-slate-500 uppercase">Persona a Cargo (Contacto)</label><input className="border w-full p-2.5 rounded-lg bg-slate-50 focus:bg-white outline-none text-sm" placeholder="Quien contesta el teléfono" value={forms.company.contactPerson} onChange={e=>setForms(f=>({...f, company:{...f.company, contactPerson:e.target.value}}))}/></div>
+                                                <div className="space-y-1 sm:col-span-2"><label className="text-xs font-bold text-slate-500 uppercase">Dirección Fiscal</label><input className="border w-full p-2.5 rounded-lg bg-slate-50 focus:bg-white outline-none text-sm" value={forms.company.fiscalAddress} onChange={e=>setForms(f=>({...f, company:{...f.company, fiscalAddress:e.target.value}}))}/></div>
+                                                <div className="space-y-1 sm:col-span-2"><label className="text-xs font-bold text-slate-500 uppercase">Dirección Comprobante Domicilio</label><input className="border w-full p-2.5 rounded-lg bg-slate-50 focus:bg-white outline-none text-sm" value={forms.company.proofAddress} onChange={e=>setForms(f=>({...f, company:{...f.company, proofAddress:e.target.value}}))}/></div>
+                                                <div className="space-y-1 sm:col-span-2"><label className="text-xs font-bold text-slate-500 uppercase">Persona a Cargo (Contacto)</label><input className="border w-full p-2.5 rounded-lg bg-slate-50 focus:bg-white outline-none text-sm" placeholder="Quien contesta el teléfono" value={forms.company.contactPerson} onChange={e=>setForms(f=>({...f, company:{...f.company, contactPerson:e.target.value}}))}/></div>
                                             </div>
                                         </div>
 
                                         {/* SECCION 3: ACCESOS Y CORREOS */}
                                         <div>
                                             <h4 className="text-xs font-bold text-indigo-900 uppercase mb-3 pb-1 border-b border-indigo-100 flex items-center gap-2"><Key size={14}/> Accesos y Correos</h4>
-                                            <div className="grid grid-cols-2 gap-4">
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                                 <div className="space-y-1"><label className="text-xs font-bold text-slate-500 uppercase">Correo Asignado</label><input className="border w-full p-2.5 rounded-lg bg-slate-50 focus:bg-white outline-none text-sm" value={forms.company.assignedEmail} onChange={e=>setForms(f=>({...f, company:{...f.company, assignedEmail:e.target.value}}))}/></div>
                                                 {userRole === 'admin' ? (
                                                     <div className="space-y-1"><label className="text-xs font-bold text-red-500 uppercase flex gap-1 items-center"><Lock size={10}/> Contraseña</label><input type="text" className="border w-full p-2.5 rounded-lg bg-red-50 focus:bg-white outline-none text-sm text-red-600" value={forms.company.assignedEmailPassword} onChange={e=>setForms(f=>({...f, company:{...f.company, assignedEmailPassword:e.target.value}}))}/></div>
@@ -942,7 +929,7 @@
                                         {/* CHECKLIST */}
                                         <div className="border-t pt-4">
                                             <h4 className="font-bold text-sm text-slate-700 mb-2 flex items-center gap-2"><CheckSquare size={16}/> Checklist de Alta</h4>
-                                            <div className="grid grid-cols-2 gap-2 text-xs">
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
                                                 {Object.keys(checklistLabels).map(key => (
                                                     <label key={key} className="flex items-center gap-2 p-2 rounded hover:bg-slate-50 cursor-pointer border border-transparent hover:border-slate-100">
                                                         <input type="checkbox" className="accent-indigo-600" checked={forms.company.checklist?.[key]} onChange={e=>setForms(f=>({...f, company:{...f.company, checklist:{...f.company.checklist, [key]:e.target.checked}}}))}/>
@@ -1082,6 +1069,7 @@
                                                                 className="border w-full p-2.5 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500 outline-none font-bold" 
                                                                 value={forms.ticket.status} 
                                                                 onChange={e=>setForms(f=>({...f, ticket:{...f.ticket, status:e.target.value}}))}
+                                                                disabled={userRole !== 'admin'}
                                                             >
                                                                 <option value="pendiente">Pendiente</option>
                                                                 <option value="proceso">En Proceso</option>
@@ -1157,15 +1145,15 @@
                                             )}
 
                                             {/* Boton Reabrir */}
-                                            {modal.data && modal.data.status === 'resuelto' && (
-                                                <div className="flex-1 flex gap-2">
+                                            {modal.data && modal.data.status === 'resuelto' && userRole === 'admin' && (
+                                                <div className="flex-1 flex flex-col sm:flex-row gap-2">
                                                     <input 
-                                                        className="flex-1 border p-2 rounded text-xs" 
+                                                        className="flex-1 border p-2 rounded text-xs focus:ring-2 focus:ring-amber-500 outline-none" 
                                                         placeholder="Motivo para reabrir..." 
                                                         value={forms.ticket.newUpdate}
                                                         onChange={e=>setForms(f=>({...f, ticket:{...f.ticket, newUpdate:e.target.value}}))}
                                                     />
-                                                    <button onClick={handleReopenTicket} className="px-4 py-2 bg-amber-500 text-white rounded-lg font-bold hover:bg-amber-600 text-xs">Reabrir Ticket</button>
+                                                    <button onClick={handleReopenTicket} className="px-4 py-2 bg-amber-500 text-white rounded-lg font-bold hover:bg-amber-600 text-xs whitespace-nowrap">Reabrir Ticket</button>
                                                 </div>
                                             )}
                                         </div>
