@@ -123,7 +123,7 @@
         const getStoredConfig = () => {
             try {
                 if (typeof __firebase_config !== 'undefined') return JSON.parse(__firebase_config);
-                const hardcodedConfig = { apiKey: "TU_API_KEY_AQUI", authDomain: "coria-aperturas.firebaseapp.com", projectId: "coria-aperturas", storageBucket: "coria-aperturas.appspot.com", messagingSenderId: "TU_SENDER_ID", appId: "TU_APP_ID" };
+                const hardcodedConfig = { apiKey: "AIzaSyA9gk593APfDsDIG3VGTclmzs8aO9oLgJg", authDomain: "control-aperturas-27baf.firebaseapp.com", projectId: "control-aperturas-27baf", storageBucket: "control-aperturas-27baf.firebasestorage.app", messagingSenderId: "291057486602", appId: "1:291057486602:web:0d05d616ea84cd69e448f3" };
                 if (hardcodedConfig.apiKey !== "TU_API_KEY_AQUI") return hardcodedConfig;
                 const local = localStorage.getItem('apertura_firebase_config');
                 if (local) return JSON.parse(local);
@@ -590,3 +590,4 @@
     </script>
 </body>
 </html>
+
