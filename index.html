@@ -35,7 +35,7 @@
     <!-- Capturador Global de Errores -->
     <script>
         window.onerror = function(msg, url, line, col, error) {
-            if (msg.includes('Script error')) return; // Ignorar errores de cross-origin
+            if (msg.includes('Script error')) return; 
             const root = document.getElementById('root');
             if(root) {
                 root.innerHTML = `
@@ -63,18 +63,18 @@
         import { initializeApp, getApps, getApp } from 'firebase/app';
         import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
         import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, serverTimestamp } from 'firebase/firestore';
-        import { LayoutDashboard, Building2, Building, LifeBuoy, Plus, Edit, Trash2, Settings, ShieldAlert, LogOut, User, Lock, Mail, Info, Database, Menu, X, Crown, AlertTriangle, Download, History, MapPin, CheckSquare, Globe, Phone } from 'lucide-react';
+        import { LayoutDashboard, Building2, Building, LifeBuoy, Plus, Edit, Trash2, Settings, ShieldAlert, LogOut, User, Lock, Mail, Info, Database, Menu, X, Crown, AlertTriangle, Download, History, MapPin, CheckSquare, Globe, Phone, FileText, Key, Calendar, MessageSquare } from 'lucide-react';
 
         // ------------------------------------------------------------------
         // ---  ¡ATENCIÓN! PEGA AQUÍ TUS DATOS DE FIREBASE (Project Settings) ---
         // ------------------------------------------------------------------
         const firebaseConfig = {
             apiKey: "AIzaSyA9gk593APfDsDIG3VGTclmzs8aO9oLgJg",
-  authDomain: "control-aperturas-27baf.firebaseapp.com",
-  projectId: "control-aperturas-27baf",
-  storageBucket: "control-aperturas-27baf.firebasestorage.app",
-  messagingSenderId: "291057486602",
-  appId: "1:291057486602:web:0d05d616ea84cd69e448f3"
+            authDomain: "control-aperturas-27baf.firebaseapp.com",
+            projectId: "control-aperturas-27baf",
+            storageBucket: "control-aperturas-27baf.firebasestorage.app",
+            messagingSenderId: "291057486602",
+            appId: "1:291057486602:web:0d05d616ea84cd69e448f3"
         };
         // ------------------------------------------------------------------
 
@@ -115,9 +115,35 @@
             return Math.ceil((new Date(dateString) - new Date()) / (1000 * 60 * 60 * 24)); 
         };
 
+        const calculateProgress = (office) => {
+            if (!office.companies || office.companies.length === 0) return 0;
+            let totalChecks = 0;
+            let completedChecks = 0;
+            // Nuevas claves del checklist
+            const checklistKeys = [
+                'cifUpdated', 
+                'interiorAssigned', 
+                'acrylicSign', 
+                'phoneLine', 
+                'webPage', 
+                'phoneInstalled', 
+                'emailCreated'
+            ];
+            
+            office.companies.forEach(c => {
+                if (c.checklist) {
+                    checklistKeys.forEach(key => {
+                        totalChecks++;
+                        if (c.checklist[key]) completedChecks++;
+                    });
+                }
+            });
+            
+            return totalChecks === 0 ? 0 : Math.round((completedChecks / totalChecks) * 100);
+        };
+
         // --- COMPONENTES ---
 
-        // Pantalla de Configuración Requerida
         function SetupRequiredScreen() {
             return (
                 <div className="min-h-screen flex items-center justify-center bg-slate-100 p-4">
@@ -125,20 +151,12 @@
                         <Database className="w-16 h-16 text-amber-500 mx-auto mb-4"/>
                         <h1 className="text-2xl font-bold text-slate-800 mb-2">Falta Conexión a Base de Datos</h1>
                         <p className="text-slate-600 mb-6">Para restaurar todas las funciones, edita el archivo <code>index.html</code> y pega tus datos de Firebase en las líneas 68-75.</p>
-                        <div className="bg-slate-900 text-slate-300 p-4 rounded-lg text-left text-xs font-mono overflow-x-auto mb-6">
-                            <p className="text-green-400">// Configura tus credenciales aquí:</p>
-                            <p>const firebaseConfig = &#123;</p>
-                            <p>&nbsp;&nbsp;apiKey: "...",</p>
-                            <p>&nbsp;&nbsp;...</p>
-                            <p>&#125;;</p>
-                        </div>
-                        <button onClick={()=>window.location.reload()} className="bg-indigo-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-indigo-700">Ya lo edité, Recargar</button>
+                        <button onClick={()=>window.location.reload()} className="bg-indigo-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-indigo-700">Recargar</button>
                     </div>
                 </div>
             );
         }
 
-        // Pantalla Login
         function LoginScreen() {
             const [email, setEmail] = useState('');
             const [password, setPassword] = useState('');
@@ -196,17 +214,27 @@
             // Modales
             const [modal, setModal] = useState(null);
             
-            // Estado de Formularios (RESTAURADO COMPLETO)
+            // Estado de Formularios
             const [forms, setForms] = useState({ 
                 office: { 
                     name: '', address: '', contractEndDate: '', landlordName: '', notes: '', companies: [] 
                 },
                 company: { 
-                    name: '', isLeader: false, interior: '', webUrl: '', phoneNumber: '',
-                    assignmentDate: new Date().toISOString().split('T')[0], 
+                    name: '', isLeader: false, interior: '', webUrl: '', domainExpirationDate: '', phoneNumber: '',
+                    rfc: '', fiscalAddress: '', proofAddress: '',
+                    legalRep: '', contactPerson: '',
+                    assignedEmail: '', assignedEmailPassword: '',
+                    treasuryEmail: '', treasuryEmailPassword: '',
+                    assignmentDate: new Date().toISOString().split('T')[0],
+                    observations: '', // Nuevo campo de observaciones
                     checklist: { 
-                        telmexProof: false, fiscalAddressEmail: false, interiorAssigned: false, 
-                        emailCreated: false, webCreated: false, phoneInstalled: false 
+                        cifUpdated: false,
+                        interiorAssigned: false,
+                        acrylicSign: false,
+                        phoneLine: false,
+                        webPage: false,
+                        phoneInstalled: false,
+                        emailCreated: false
                     }
                 },
                 ticket: { 
@@ -215,12 +243,42 @@
                 }
             });
 
-            // Alertas (RESTAURADO)
+            // Mapeo de nombres para el checklist
+            const checklistLabels = {
+                cifUpdated: 'Ya cuenta con CIF actualizado',
+                interiorAssigned: 'Interior Asignado',
+                acrylicSign: 'Letrero acrílico',
+                phoneLine: 'Línea Telefónica',
+                webPage: 'Pagina Web',
+                phoneInstalled: 'Teléfono Instalado',
+                emailCreated: 'Correo creado'
+            };
+
+            // Alertas (90 DIAS)
             const alerts = useMemo(() => {
                 const list = [];
                 items.offices.forEach(o => {
-                    if(o.contractEndDate && getDaysDiff(o.contractEndDate) <= 90) 
-                        list.push({type:'contract', priority:1, title:`Contrato: ${o.name}`, msg:`Vence el ${formatDate(o.contractEndDate)}`, officeId:o.id});
+                    // Alerta de Contrato
+                    if(o.contractEndDate) {
+                        const days = getDaysDiff(o.contractEndDate);
+                        if(days <= 90) {
+                            const priority = days <= 30 ? 1 : 2; // Urgente si es menos de 30 dias
+                            list.push({type:'contract', priority, title:`Contrato Oficina: ${o.name}`, msg:`Vence el ${formatDate(o.contractEndDate)} (${days} días)`});
+                        }
+                    }
+                    
+                    // Alertas de Dominio Web
+                    if(o.companies) {
+                        o.companies.forEach(c => {
+                            if(c.domainExpirationDate) {
+                                const days = getDaysDiff(c.domainExpirationDate);
+                                if(days <= 90) {
+                                    const priority = days <= 30 ? 1 : 2;
+                                    list.push({type:'domain', priority, title:`Dominio Web: ${c.name}`, msg:`Vence el ${formatDate(c.domainExpirationDate)} (${days} días)`});
+                                }
+                            }
+                        });
+                    }
                 });
                 return list.sort((a,b)=>a.priority-b.priority);
             }, [items.offices]);
@@ -255,7 +313,7 @@
                 const ref = doc(db, 'artifacts', appId, 'public', 'data', 'offices', modal.parent.id);
                 let list = [...(modal.parent.companies || [])];
                 
-                // Si es lider, quitamos lider a los demas
+                // Logica de empresa lider
                 if(forms.company.isLeader) list = list.map(c=>({...c, isLeader:false}));
 
                 if(modal.data) list[modal.data.idx] = forms.company;
@@ -271,14 +329,12 @@
                 
                 let data = { ...forms.ticket };
                 if(modal.data) {
-                    // Si es edicion (agregar update)
                     if(data.newUpdate) {
                         data.updates = [...(data.updates||[]), {text: data.newUpdate, date: new Date().toISOString(), author: user.email}];
                         delete data.newUpdate;
                     }
                     await updateDoc(doc(ref, modal.data.id), data);
                 } else {
-                    // Si es nuevo
                     data.officeName = office?.name || '?';
                     data.createdAt = serverTimestamp();
                     delete data.newUpdate;
@@ -290,11 +346,11 @@
             const deleteItem = async (col, id) => { if(confirm("¿Seguro de eliminar?")) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', col, id)); };
 
             const exportExcel = () => {
-                let csv = "ID,Oficina,Direccion,Vencimiento,Empresa,Lider,Interior,Telefono,Web\n";
+                let csv = "ID,Oficina,Direccion,Vencimiento Contrato,Empresa,Lider,Vencimiento Dominio,Telefono,Web,RFC,Direccion Fiscal,Representante,Contacto\n";
                 items.offices.forEach(o => {
                     const comps = o.companies || [];
-                    if(!comps.length) csv += `"${o.id}","${o.name}","${o.address}","${formatDate(o.contractEndDate)}",,,,\n`;
-                    else comps.forEach(c => csv += `"${o.id}","${o.name}","${o.address}","${formatDate(o.contractEndDate)}","${c.name}","${c.isLeader?'SI':'NO'}","${c.interior}","${c.phoneNumber}","${c.webUrl}"\n`);
+                    if(!comps.length) csv += `"${o.id}","${o.name}","${o.address}","${formatDate(o.contractEndDate)}",,,,,,,,,\n`;
+                    else comps.forEach(c => csv += `"${o.id}","${o.name}","${o.address}","${formatDate(o.contractEndDate)}","${c.name}","${c.isLeader?'SI':'NO'}","${formatDate(c.domainExpirationDate)}","${c.phoneNumber}","${c.webUrl}","${c.rfc||''}","${c.fiscalAddress||''}","${c.legalRep||''}","${c.contactPerson||''}"\n`);
                 });
                 const link = document.createElement("a");
                 link.href = URL.createObjectURL(new Blob([`\uFEFF${csv}`], {type:'text/csv'}));
@@ -304,6 +360,19 @@
 
             if(loadingAuth) return <div className="h-screen flex items-center justify-center"><div className="loading-spinner"></div></div>;
             if(!user) return <LoginScreen />;
+
+            // Helper para calcular estado del modal
+            const getLeaderStatus = () => {
+                if(modal?.type !== 'company' || !modal?.parent) return { disabled: false, message: '' };
+                const companies = modal.parent.companies || [];
+                const leaderIndex = companies.findIndex(c => c.isLeader);
+                const hasLeader = leaderIndex !== -1;
+                const isCurrentCompanyLeader = modal.data && modal.data.idx === leaderIndex;
+                if (hasLeader && !isCurrentCompanyLeader) return { disabled: true, message: 'Ya existe una empresa líder en esta oficina.' };
+                return { disabled: false, message: '' };
+            };
+
+            const leaderStatus = getLeaderStatus();
 
             return (
                 <div className="flex h-screen overflow-hidden bg-slate-50">
@@ -360,11 +429,12 @@
 
                                     {alerts.length > 0 && (
                                         <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                                            <div className="bg-amber-50 p-4 border-b border-amber-100 flex gap-2 items-center font-bold text-amber-800"><AlertTriangle size={18}/> Alertas de Vencimiento</div>
+                                            <div className="bg-amber-50 p-4 border-b border-amber-100 flex gap-2 items-center font-bold text-amber-800"><AlertTriangle size={18}/> Alertas de Vencimiento (90 Días)</div>
                                             <div className="divide-y divide-slate-100">
                                                 {alerts.map((a,i) => (
                                                     <div key={i} className="p-4 flex justify-between items-center hover:bg-slate-50">
                                                         <div><p className="font-bold text-sm text-slate-700">{a.title}</p><p className="text-xs text-slate-500">{a.msg}</p></div>
+                                                        <span className={`text-[10px] font-bold px-2 py-1 rounded uppercase ${a.priority===1?'bg-red-100 text-red-600':'bg-amber-100 text-amber-600'}`}>{a.priority===1?'Urgente':'Atención'}</span>
                                                     </div>
                                                 ))}
                                             </div>
@@ -375,7 +445,9 @@
 
                             {tab === 'offices' && (
                                 <div className="grid gap-6 max-w-5xl mx-auto animate-[fadeIn_0.3s_ease-out]">
-                                    {items.offices.map(o => (
+                                    {items.offices.map(o => {
+                                        const progress = calculateProgress(o);
+                                        return (
                                         <div key={o.id} className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition">
                                             <div className="p-5 border-b bg-slate-50/50 flex justify-between items-start">
                                                 <div>
@@ -383,13 +455,30 @@
                                                     <p className="text-xs text-slate-500 flex items-center gap-1"><MapPin size={12}/> {o.address}</p>
                                                     {o.contractEndDate && <p className="text-[10px] text-slate-400 mt-1">Vence contrato: {formatDate(o.contractEndDate)}</p>}
                                                 </div>
-                                                {userRole === 'admin' && (
-                                                    <div className="flex gap-2">
-                                                        <button onClick={()=>{setForms({...forms, office:o}); setModal({type:'office', data:o})}} className="p-2 hover:bg-white hover:shadow-sm rounded-lg text-slate-400 hover:text-indigo-600 transition"><Edit size={16}/></button>
-                                                        <button onClick={()=>deleteItem('offices', o.id)} className="p-2 hover:bg-white hover:shadow-sm rounded-lg text-slate-400 hover:text-red-500 transition"><Trash2 size={16}/></button>
-                                                    </div>
-                                                )}
+                                                <div className="text-right">
+                                                    {userRole === 'admin' && (
+                                                        <div className="flex gap-2 justify-end mb-2">
+                                                            <button onClick={()=>{setForms({...forms, office:o}); setModal({type:'office', data:o})}} className="p-2 hover:bg-white hover:shadow-sm rounded-lg text-slate-400 hover:text-indigo-600 transition"><Edit size={16}/></button>
+                                                            <button onClick={()=>deleteItem('offices', o.id)} className="p-2 hover:bg-white hover:shadow-sm rounded-lg text-slate-400 hover:text-red-500 transition"><Trash2 size={16}/></button>
+                                                        </div>
+                                                    )}
+                                                    <span className="text-xs font-bold px-2 py-1 bg-white rounded border border-slate-200 text-slate-600">
+                                                        {o.companies?.length || 0} Empresas
+                                                    </span>
+                                                </div>
                                             </div>
+                                            
+                                            {/* BARRA DE PROGRESO */}
+                                            <div className="px-5 pt-4">
+                                                <div className="flex justify-between items-center mb-1">
+                                                    <span className="text-xs font-bold text-slate-500 uppercase">Cumplimiento Checklist</span>
+                                                    <span className={`text-xs font-bold ${progress === 100 ? 'text-emerald-600' : 'text-indigo-600'}`}>{progress}%</span>
+                                                </div>
+                                                <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                                                    <div className={`h-full rounded-full transition-all duration-500 ${progress === 100 ? 'bg-emerald-500' : 'bg-indigo-500'}`} style={{ width: `${progress}%` }}></div>
+                                                </div>
+                                            </div>
+
                                             <div className="p-5 space-y-3">
                                                 {(o.companies||[]).map((c, i) => (
                                                     <div key={i} className="flex justify-between items-center border border-slate-100 p-3 rounded-lg hover:border-indigo-100 hover:bg-indigo-50/30 transition group">
@@ -411,10 +500,10 @@
                                                         )}
                                                     </div>
                                                 ))}
-                                                {userRole === 'admin' && <button onClick={()=>{setForms({...forms, company:{name:'', isLeader:false, interior:'', webUrl:'', phoneNumber:'', assignmentDate: new Date().toISOString().split('T')[0], checklist:{telmexProof:false, fiscalAddressEmail:false, interiorAssigned:false, emailCreated:false, webCreated:false, phoneInstalled:false}}}); setModal({type:'company', parent:o, data:null})}} className="w-full py-2.5 border-2 border-dashed border-slate-200 rounded-lg text-sm font-bold text-slate-400 hover:text-indigo-600 hover:border-indigo-300 hover:bg-indigo-50/20 flex items-center justify-center gap-2 transition"><Plus size={16}/> Agregar Empresa</button>}
+                                                {userRole === 'admin' && <button onClick={()=>{setForms({...forms, company:{name:'', isLeader:false, interior:'', webUrl:'', domainExpirationDate:'', phoneNumber:'', rfc:'', fiscalAddress:'', proofAddress:'', legalRep:'', contactPerson:'', assignedEmail:'', assignedEmailPassword:'', treasuryEmail:'', treasuryEmailPassword:'', assignmentDate: new Date().toISOString().split('T')[0], observations: '', checklist:{cifUpdated:false, interiorAssigned:false, acrylicSign:false, phoneLine:false, webPage:false, phoneInstalled:false, emailCreated:false}}}); setModal({type:'company', parent:o, data:null})}} className="w-full py-2.5 border-2 border-dashed border-slate-200 rounded-lg text-sm font-bold text-slate-400 hover:text-indigo-600 hover:border-indigo-300 hover:bg-indigo-50/20 flex items-center justify-center gap-2 transition"><Plus size={16}/> Agregar Empresa</button>}
                                             </div>
                                         </div>
-                                    ))}
+                                    )})}
                                 </div>
                             )}
 
@@ -475,13 +564,13 @@
                         </div>
                     </main>
 
-                    {/* MODALES GENERIGOS RESTAURADOS */}
+                    {/* MODALES */}
                     {modal && (
                         <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-50 backdrop-blur-sm fade-in">
-                            <div className="bg-white p-6 rounded-2xl w-full max-w-lg shadow-2xl scale-100 transition-all max-h-[90vh] overflow-y-auto">
+                            <div className="bg-white p-6 rounded-2xl w-full max-w-2xl shadow-2xl scale-100 transition-all max-h-[90vh] overflow-y-auto">
                                 <h3 className="font-bold text-xl mb-6 capitalize text-slate-800 flex items-center gap-2">
                                     {modal.type === 'company' ? <Building2 size={24} className="text-indigo-600"/> : modal.type === 'ticket' ? <LifeBuoy size={24} className="text-indigo-600"/> : <Building size={24} className="text-indigo-600"/>}
-                                    {modal.type === 'company' ? 'Empresa' : modal.type === 'ticket' ? 'Gestión de Ticket' : 'Oficina'}
+                                    {modal.type === 'company' ? 'Gestión de Empresa' : modal.type === 'ticket' ? 'Gestión de Ticket' : 'Oficina'}
                                 </h3>
                                 
                                 {modal.type === 'office' && (
@@ -498,29 +587,82 @@
                                 )}
 
                                 {modal.type === 'company' && (
-                                    <div className="space-y-4">
-                                        <div className="flex gap-4 items-center mb-2 bg-amber-50 p-2 rounded-lg border border-amber-100">
+                                    <div className="space-y-6">
+                                        {/* LOGICA DE BLOQUEO DE LIDER */}
+                                        <div className={`flex gap-4 items-center mb-2 p-3 rounded-lg border ${leaderStatus.disabled ? 'bg-slate-100 border-slate-200' : 'bg-amber-50 border-amber-100'}`}>
                                             <Crown size={20} className={forms.company.isLeader ? "text-amber-500 fill-amber-500" : "text-slate-300"}/>
-                                            <label className="text-sm font-bold text-slate-700 flex-1 cursor-pointer select-none">¿Es Empresa Líder? <input type="checkbox" className="ml-2 accent-amber-500" checked={forms.company.isLeader} onChange={e=>setForms(f=>({...f, company:{...f.company, isLeader:e.target.checked}}))}/></label>
-                                        </div>
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div className="space-y-1 col-span-2"><label className="text-xs font-bold text-slate-500 uppercase">Nombre Empresa</label><input className="border w-full p-3 rounded-lg bg-slate-50 focus:bg-white outline-none" value={forms.company.name} onChange={e=>setForms(f=>({...f, company:{...f.company, name:e.target.value}}))}/></div>
-                                            <div className="space-y-1"><label className="text-xs font-bold text-slate-500 uppercase">Teléfono</label><input className="border w-full p-3 rounded-lg bg-slate-50 focus:bg-white outline-none" value={forms.company.phoneNumber} onChange={e=>setForms(f=>({...f, company:{...f.company, phoneNumber:e.target.value}}))}/></div>
-                                            <div className="space-y-1"><label className="text-xs font-bold text-slate-500 uppercase">Interior</label><input className="border w-full p-3 rounded-lg bg-slate-50 focus:bg-white outline-none" value={forms.company.interior} onChange={e=>setForms(f=>({...f, company:{...f.company, interior:e.target.value}}))}/></div>
-                                            <div className="space-y-1 col-span-2"><label className="text-xs font-bold text-slate-500 uppercase">Sitio Web</label><input className="border w-full p-3 rounded-lg bg-slate-50 focus:bg-white outline-none" value={forms.company.webUrl} onChange={e=>setForms(f=>({...f, company:{...f.company, webUrl:e.target.value}}))}/></div>
+                                            <div className="flex-1">
+                                                <label className={`text-sm font-bold flex-1 select-none ${leaderStatus.disabled ? 'text-slate-400 cursor-not-allowed' : 'text-slate-700 cursor-pointer'}`}>
+                                                    ¿Es Empresa Líder? 
+                                                    <input 
+                                                        type="checkbox" 
+                                                        className="ml-2 accent-amber-500" 
+                                                        checked={forms.company.isLeader} 
+                                                        onChange={e=>setForms(f=>({...f, company:{...f.company, isLeader:e.target.checked}}))}
+                                                        disabled={leaderStatus.disabled}
+                                                    />
+                                                </label>
+                                                {leaderStatus.disabled && <p className="text-[10px] text-red-400 mt-1 font-medium">{leaderStatus.message}</p>}
+                                            </div>
                                         </div>
                                         
-                                        {/* CHECKLIST RESTAURADO */}
+                                        {/* SECCION 1: DATOS GENERALES */}
+                                        <div>
+                                            <h4 className="text-xs font-bold text-indigo-900 uppercase mb-3 pb-1 border-b border-indigo-100 flex items-center gap-2"><Building size={14}/> Datos Generales</h4>
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div className="space-y-1 col-span-2"><label className="text-xs font-bold text-slate-500 uppercase">Nombre Empresa</label><input className="border w-full p-2.5 rounded-lg bg-slate-50 focus:bg-white outline-none text-sm" value={forms.company.name} onChange={e=>setForms(f=>({...f, company:{...f.company, name:e.target.value}}))}/></div>
+                                                <div className="space-y-1"><label className="text-xs font-bold text-slate-500 uppercase">Teléfono Oficina</label><input className="border w-full p-2.5 rounded-lg bg-slate-50 focus:bg-white outline-none text-sm" value={forms.company.phoneNumber} onChange={e=>setForms(f=>({...f, company:{...f.company, phoneNumber:e.target.value}}))}/></div>
+                                                <div className="space-y-1"><label className="text-xs font-bold text-slate-500 uppercase">Interior / Suite</label><input className="border w-full p-2.5 rounded-lg bg-slate-50 focus:bg-white outline-none text-sm" value={forms.company.interior} onChange={e=>setForms(f=>({...f, company:{...f.company, interior:e.target.value}}))}/></div>
+                                                <div className="space-y-1 col-span-2"><label className="text-xs font-bold text-slate-500 uppercase">Sitio Web</label><input className="border w-full p-2.5 rounded-lg bg-slate-50 focus:bg-white outline-none text-sm" value={forms.company.webUrl} onChange={e=>setForms(f=>({...f, company:{...f.company, webUrl:e.target.value}}))}/></div>
+                                                <div className="space-y-1 col-span-2"><label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-2"><Calendar size={12}/> Vencimiento Dominio</label><input type="date" className="border w-full p-2.5 rounded-lg bg-slate-50 focus:bg-white outline-none text-sm" value={forms.company.domainExpirationDate} onChange={e=>setForms(f=>({...f, company:{...f.company, domainExpirationDate:e.target.value}}))}/></div>
+                                            </div>
+                                        </div>
+
+                                        {/* SECCION 2: DATOS FISCALES Y LEGALES */}
+                                        <div>
+                                            <h4 className="text-xs font-bold text-indigo-900 uppercase mb-3 pb-1 border-b border-indigo-100 flex items-center gap-2"><FileText size={14}/> Datos Fiscales y Legales</h4>
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div className="space-y-1"><label className="text-xs font-bold text-slate-500 uppercase">RFC</label><input className="border w-full p-2.5 rounded-lg bg-slate-50 focus:bg-white outline-none text-sm" value={forms.company.rfc} onChange={e=>setForms(f=>({...f, company:{...f.company, rfc:e.target.value}}))}/></div>
+                                                <div className="space-y-1"><label className="text-xs font-bold text-slate-500 uppercase">Representante Legal (Firma)</label><input className="border w-full p-2.5 rounded-lg bg-slate-50 focus:bg-white outline-none text-sm" value={forms.company.legalRep} onChange={e=>setForms(f=>({...f, company:{...f.company, legalRep:e.target.value}}))}/></div>
+                                                <div className="space-y-1 col-span-2"><label className="text-xs font-bold text-slate-500 uppercase">Dirección Fiscal</label><input className="border w-full p-2.5 rounded-lg bg-slate-50 focus:bg-white outline-none text-sm" value={forms.company.fiscalAddress} onChange={e=>setForms(f=>({...f, company:{...f.company, fiscalAddress:e.target.value}}))}/></div>
+                                                <div className="space-y-1 col-span-2"><label className="text-xs font-bold text-slate-500 uppercase">Dirección Comprobante Domicilio</label><input className="border w-full p-2.5 rounded-lg bg-slate-50 focus:bg-white outline-none text-sm" value={forms.company.proofAddress} onChange={e=>setForms(f=>({...f, company:{...f.company, proofAddress:e.target.value}}))}/></div>
+                                                <div className="space-y-1 col-span-2"><label className="text-xs font-bold text-slate-500 uppercase">Persona a Cargo (Contacto)</label><input className="border w-full p-2.5 rounded-lg bg-slate-50 focus:bg-white outline-none text-sm" placeholder="Quien contesta el teléfono" value={forms.company.contactPerson} onChange={e=>setForms(f=>({...f, company:{...f.company, contactPerson:e.target.value}}))}/></div>
+                                            </div>
+                                        </div>
+
+                                        {/* SECCION 3: ACCESOS Y CORREOS */}
+                                        <div>
+                                            <h4 className="text-xs font-bold text-indigo-900 uppercase mb-3 pb-1 border-b border-indigo-100 flex items-center gap-2"><Key size={14}/> Accesos y Correos</h4>
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div className="space-y-1"><label className="text-xs font-bold text-slate-500 uppercase">Correo Asignado</label><input className="border w-full p-2.5 rounded-lg bg-slate-50 focus:bg-white outline-none text-sm" value={forms.company.assignedEmail} onChange={e=>setForms(f=>({...f, company:{...f.company, assignedEmail:e.target.value}}))}/></div>
+                                                {userRole === 'admin' ? (
+                                                    <div className="space-y-1"><label className="text-xs font-bold text-red-500 uppercase flex gap-1 items-center"><Lock size={10}/> Contraseña</label><input type="text" className="border w-full p-2.5 rounded-lg bg-red-50 focus:bg-white outline-none text-sm text-red-600" value={forms.company.assignedEmailPassword} onChange={e=>setForms(f=>({...f, company:{...f.company, assignedEmailPassword:e.target.value}}))}/></div>
+                                                ) : <div className="space-y-1"><label className="text-xs font-bold text-slate-400 uppercase">Contraseña</label><div className="p-2.5 text-xs text-slate-400 bg-slate-100 rounded italic">Oculto</div></div>}
+
+                                                <div className="space-y-1"><label className="text-xs font-bold text-slate-500 uppercase">Correo Tesorería/Otros</label><input className="border w-full p-2.5 rounded-lg bg-slate-50 focus:bg-white outline-none text-sm" value={forms.company.treasuryEmail} onChange={e=>setForms(f=>({...f, company:{...f.company, treasuryEmail:e.target.value}}))}/></div>
+                                                {userRole === 'admin' ? (
+                                                    <div className="space-y-1"><label className="text-xs font-bold text-red-500 uppercase flex gap-1 items-center"><Lock size={10}/> Contraseña</label><input type="text" className="border w-full p-2.5 rounded-lg bg-red-50 focus:bg-white outline-none text-sm text-red-600" value={forms.company.treasuryEmailPassword} onChange={e=>setForms(f=>({...f, company:{...f.company, treasuryEmailPassword:e.target.value}}))}/></div>
+                                                ) : <div className="space-y-1"><label className="text-xs font-bold text-slate-400 uppercase">Contraseña</label><div className="p-2.5 text-xs text-slate-400 bg-slate-100 rounded italic">Oculto</div></div>}
+                                            </div>
+                                        </div>
+                                        
+                                        {/* CHECKLIST */}
                                         <div className="border-t pt-4">
                                             <h4 className="font-bold text-sm text-slate-700 mb-2 flex items-center gap-2"><CheckSquare size={16}/> Checklist de Alta</h4>
                                             <div className="grid grid-cols-2 gap-2 text-xs">
-                                                {Object.keys(forms.company.checklist || {}).map(k => (
-                                                    <label key={k} className="flex items-center gap-2 p-2 rounded hover:bg-slate-50 cursor-pointer border border-transparent hover:border-slate-100">
-                                                        <input type="checkbox" className="accent-indigo-600" checked={forms.company.checklist[k]} onChange={e=>setForms(f=>({...f, company:{...f.company, checklist:{...f.company.checklist, [k]:e.target.checked}}}))}/>
-                                                        <span className="capitalize">{k.replace(/([A-Z])/g, ' $1')}</span>
+                                                {Object.keys(checklistLabels).map(key => (
+                                                    <label key={key} className="flex items-center gap-2 p-2 rounded hover:bg-slate-50 cursor-pointer border border-transparent hover:border-slate-100">
+                                                        <input type="checkbox" className="accent-indigo-600" checked={forms.company.checklist?.[key]} onChange={e=>setForms(f=>({...f, company:{...f.company, checklist:{...f.company.checklist, [key]:e.target.checked}}}))}/>
+                                                        <span>{checklistLabels[key]}</span>
                                                     </label>
                                                 ))}
                                             </div>
+                                        </div>
+
+                                        {/* OBSERVACIONES */}
+                                        <div className="border-t pt-4">
+                                            <h4 className="font-bold text-sm text-slate-700 mb-2 flex items-center gap-2"><MessageSquare size={16}/> Observaciones</h4>
+                                            <textarea className="border w-full p-3 rounded-lg bg-slate-50 focus:bg-white outline-none h-20 text-sm" placeholder="Detalles adicionales sobre la empresa..." value={forms.company.observations} onChange={e=>setForms(f=>({...f, company:{...f.company, observations:e.target.value}}))}/>
                                         </div>
 
                                         <div className="flex justify-end gap-3 pt-4 border-t mt-2"><button onClick={()=>setModal(null)} className="px-5 py-2.5 border border-slate-200 text-slate-600 font-medium rounded-lg hover:bg-slate-50">Cancelar</button><button onClick={saveCompany} className="px-5 py-2.5 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700">Guardar</button></div>
