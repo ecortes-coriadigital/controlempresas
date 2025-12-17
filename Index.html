@@ -48,7 +48,8 @@
     <script type="text/babel" data-type="module">
         import React, { useState, useEffect, useMemo } from 'react';
         import ReactDOM from 'react-dom/client';
-        import { initializeApp } from 'firebase/app';
+        // CORRECCIÓN 1: Importamos getApps y getApp para evitar errores de doble inicialización
+        import { initializeApp, getApps, getApp } from 'firebase/app';
         import { 
             getAuth, 
             signInAnonymously, 
@@ -78,24 +79,21 @@
         // --- GESTIÓN DE CONFIGURACIÓN ---
         const getStoredConfig = () => {
             try {
-                // 1. Intentar variables de entorno (si existen, para Canvas)
                 if (typeof __firebase_config !== 'undefined') return JSON.parse(__firebase_config);
                 
-                // 2. Intentar configuración manual en código
                 const hardcodedConfig = {
-                    apiKey: "AIzaSyA9gk593APfDsDIG3VGTclmzs8aO9oLgJg",
-  authDomain: "control-aperturas-27baf.firebaseapp.com",
-  projectId: "control-aperturas-27baf",
-  storageBucket: "control-aperturas-27baf.firebasestorage.app",
-  messagingSenderId: "291057486602",
-  appId: "1:291057486602:web:0d05d616ea84cd69e448f3"
+                    apiKey: "AIzaSyA9gk593APfDsDIG3VGTclmzs8aO9oLgJg", 
+                    authDomain: "coria-aperturas.firebaseapp.com",
+                    projectId: "coria-aperturas",
+                    storageBucket: "coria-aperturas.appspot.com",
+                    messagingSenderId: "TU_SENDER_ID",
+                    appId: "TU_APP_ID"
                 };
 
                 if (hardcodedConfig.apiKey !== "TU_API_KEY_AQUI") {
                     return hardcodedConfig;
                 }
 
-                // 3. Intentar localStorage
                 const local = localStorage.getItem('apertura_firebase_config');
                 if (local) return JSON.parse(local);
 
@@ -108,17 +106,22 @@
 
         if (config && config.apiKey) {
             try {
-                app = initializeApp(config);
+                // CORRECCIÓN 1 (Continuación): Verificar si la app ya existe
+                if (!getApps().length) {
+                    app = initializeApp(config);
+                } else {
+                    app = getApp();
+                }
+                
                 auth = getAuth(app);
                 db = getFirestore(app);
                 isConfigured = true;
             } catch (e) {
                 console.error("Error iniciando Firebase:", e);
-                localStorage.removeItem('apertura_firebase_config');
+                // No borramos la config automáticamente por si es un error temporal de red
             }
         }
 
-        // Variable global App ID para rutas
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'coria-app-v1';
 
         // --- UTILITIES ---
@@ -210,14 +213,16 @@
             useEffect(() => {
                 const init = async () => {
                     try {
+                        console.log("Intentando autenticación...");
                         if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                             await signInWithCustomToken(auth, __initial_auth_token);
                         } else {
                             await signInAnonymously(auth);
                         }
+                        console.log("Autenticación exitosa");
                     } catch (e) { 
                         console.error("Auth Error:", e); 
-                        setErrorMsg("Error de autenticación: " + e.message);
+                        setErrorMsg(prev => prev + ` [Auth: ${e.message}]`);
                         setLoading(false); 
                     }
                 };
@@ -229,23 +234,31 @@
                 return () => unsubscribe();
             }, []);
 
+            // CORRECCIÓN 2: Lógica de carga de datos robusta e independiente
             useEffect(() => {
                 if(!user) return;
                 
-                // Manejo de errores robusto en onSnapshot
-                const errorHandler = (err) => {
-                    console.error("Firestore Error:", err);
-                    setErrorMsg(`Error conectando a datos: ${err.message || 'Permisos insuficientes o red caída'}`);
-                    setLoading(false);
+                let officesLoaded = false;
+                let ticketsLoaded = false;
+
+                // Función auxiliar para quitar el loading solo cuando AMBOS intentos terminen (éxito o error)
+                const checkLoading = () => {
+                    if(officesLoaded && ticketsLoaded) setLoading(false);
                 };
 
                 const unsub1 = onSnapshot(
                     collection(db, 'artifacts', appId, 'public', 'data', 'offices'), 
                     (s) => { 
                         setOffices(s.docs.map(d=>({id:d.id, ...d.data()}))); 
-                        if(tickets.length || s.empty) setLoading(false); 
+                        officesLoaded = true;
+                        checkLoading();
                     },
-                    errorHandler // IMPORTANTE: Callback de error
+                    (err) => {
+                        console.error("Error Firestore Oficinas:", err);
+                        setErrorMsg(prev => prev + " [Error Datos Oficinas: Permisos o Red]");
+                        officesLoaded = true; // Marcar como "terminado" aunque sea error para quitar el spinner
+                        checkLoading();
+                    }
                 );
 
                 const unsub2 = onSnapshot(
@@ -253,9 +266,15 @@
                     (s) => { 
                         const t = s.docs.map(d=>({id:d.id, ...d.data()})).sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
                         setTickets(t); 
-                        setLoading(false); 
+                        ticketsLoaded = true;
+                        checkLoading();
                     },
-                    errorHandler // IMPORTANTE: Callback de error
+                    (err) => {
+                        console.error("Error Firestore Tickets:", err);
+                        setErrorMsg(prev => prev + " [Error Datos Tickets: Permisos o Red]");
+                        ticketsLoaded = true; // Marcar como "terminado" aunque sea error
+                        checkLoading();
+                    }
                 );
 
                 return () => { unsub1(); unsub2(); };
@@ -329,14 +348,18 @@
                 return list.sort((a,b)=>a.priority-b.priority);
             }, [offices]);
 
-            if (errorMsg) return (
+            // CORRECCIÓN 3: Si hay error, mostrarlo pero permitir reintentar limpiamente
+            if (errorMsg && loading === false) return (
                 <div className="h-screen flex items-center justify-center p-6 bg-slate-50">
                     <div className="bg-white p-8 rounded-xl shadow-xl max-w-md text-center border-2 border-red-100">
                         <div className="bg-red-100 p-4 rounded-full inline-block mb-4"><ShieldAlert className="w-10 h-10 text-red-600"/></div>
-                        <h2 className="text-xl font-bold text-slate-800 mb-2">Error de Conexión</h2>
-                        <p className="text-sm text-slate-500 mb-6 bg-slate-50 p-3 rounded border font-mono break-all">{errorMsg}</p>
+                        <h2 className="text-xl font-bold text-slate-800 mb-2">Error de Sistema</h2>
+                        <div className="text-xs text-left bg-slate-50 p-3 rounded border font-mono mb-6 overflow-auto max-h-32">
+                            <p className="font-bold text-slate-700 mb-1">Detalle del Error:</p>
+                            <p className="text-red-600">{errorMsg}</p>
+                        </div>
                         <div className="flex flex-col gap-2">
-                            <button onClick={()=>window.location.reload()} className="w-full bg-indigo-600 text-white py-2 rounded-lg font-bold hover:bg-indigo-700">Reintentar</button>
+                            <button onClick={()=>window.location.reload()} className="w-full bg-indigo-600 text-white py-2 rounded-lg font-bold hover:bg-indigo-700">Reintentar Conexión</button>
                             <button onClick={()=>{localStorage.removeItem('apertura_firebase_config'); window.location.reload()}} className="w-full text-slate-500 py-2 text-sm hover:text-slate-700 underline">Cerrar Sesión / Cambiar DB</button>
                         </div>
                     </div>
@@ -553,4 +576,3 @@
     </script>
 </body>
 </html>
-
