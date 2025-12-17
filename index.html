@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CORIA - AperturaMaster</title>
+    <title>Control - Establecimientos</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
@@ -31,7 +31,7 @@
     <div id="root">
         <div class="h-screen flex flex-col items-center justify-center text-slate-400 gap-4">
             <div class="loading-spinner"></div>
-            <p class="text-sm">Iniciando Sistema CORIA...</p>
+            <p class="text-sm">Iniciando Sistema...</p>
         </div>
     </div>
 
@@ -131,7 +131,7 @@
                             <div className="bg-indigo-600 w-16 h-16 rounded-xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-indigo-500/30">
                                 <Building2 className="text-white w-8 h-8" />
                             </div>
-                            <h1 className="text-2xl font-bold text-slate-800">Bienvenido a CORIA</h1>
+                            <h1 className="text-2xl font-bold text-slate-800">Bienvenido</h1>
                             <p className="text-slate-500 text-sm mt-1">Gestión de Aperturas</p>
                         </div>
                         
@@ -145,7 +145,7 @@
                         <form onSubmit={handleLogin} className="space-y-4">
                             <div className="relative">
                                 <Mail className="absolute left-3 top-3 text-slate-400" size={18} />
-                                <input type="email" required className="w-full pl-10 pr-4 py-3 bg-slate-50 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="correo@coria.com" value={email} onChange={e=>setEmail(e.target.value)}/>
+                                <input type="email" required className="w-full pl-10 pr-4 py-3 bg-slate-50 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="correo@excel.com" value={email} onChange={e=>setEmail(e.target.value)}/>
                             </div>
                             <div className="relative">
                                 <Lock className="absolute left-3 top-3 text-slate-400" size={18} />
@@ -388,3 +388,4 @@
     </script>
 </body>
 </html>
+
