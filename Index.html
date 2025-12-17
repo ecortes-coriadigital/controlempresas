@@ -18,16 +18,16 @@
         window.process = { env: { NODE_ENV: 'production' } };
     </script>
 
-    <!-- Import Map: Usamos Gstatic para Firebase (Estabilidad) y ESM para React -->
+    <!-- Import Map Actualizado a versiones estables y compatibles -->
     <script type="importmap">
     {
         "imports": {
             "react": "https://esm.sh/react@18.2.0?dev",
             "react-dom/client": "https://esm.sh/react-dom@18.2.0/client?dev",
             "lucide-react": "https://esm.sh/lucide-react@0.303.0?dev",
-            "firebase/app": "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js",
-            "firebase/auth": "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js",
-            "firebase/firestore": "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js"
+            "firebase/app": "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js",
+            "firebase/auth": "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js",
+            "firebase/firestore": "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js"
         }
     }
     </script>
@@ -37,7 +37,7 @@
 </head>
 <body class="bg-slate-100 text-slate-800">
     <div id="root">
-        <!-- Loader inicial mientras carga React -->
+        <!-- Loader inicial -->
         <div class="h-screen flex flex-col items-center justify-center text-slate-400 gap-4">
             <div class="loading-spinner"></div>
             <p class="text-sm">Iniciando Sistema CORIA...</p>
@@ -46,9 +46,8 @@
 
     <!-- Script Principal -->
     <script type="text/babel" data-type="module">
-        import React, { useState, useEffect, useMemo } from 'react';
+        import React, { useState, useEffect, useMemo, Component } from 'react';
         import ReactDOM from 'react-dom/client';
-        // CORRECCIÓN 1: Importamos getApps y getApp para evitar errores de doble inicialización
         import { initializeApp, getApps, getApp } from 'firebase/app';
         import { 
             getAuth, 
@@ -73,31 +72,62 @@
             XCircle, Globe, Phone, FileText, Users, MapPin, Trash2, Edit, Clock, Calendar, 
             Crown, ChevronDown, ChevronUp, MoreVertical, ClipboardList, ExternalLink, Info, 
             LifeBuoy, MessageSquare, AlertCircle, CheckSquare, Send, Download, ShieldAlert, 
-            Eye, History, Settings, Save, RefreshCw
+            Eye, History, Settings, Save, RefreshCw, Bug
         } from 'lucide-react';
+
+        // --- ERROR BOUNDARY (Caja Negra para capturar errores de React) ---
+        class ErrorBoundary extends Component {
+            constructor(props) {
+                super(props);
+                this.state = { hasError: false, error: null, errorInfo: null };
+            }
+
+            static getDerivedStateFromError(error) {
+                return { hasError: true };
+            }
+
+            componentDidCatch(error, errorInfo) {
+                console.error("React Error Caught:", error, errorInfo);
+                this.setState({ error, errorInfo });
+            }
+
+            render() {
+                if (this.state.hasError) {
+                    return (
+                        <div className="min-h-screen flex items-center justify-center p-6 bg-slate-50">
+                            <div className="bg-white p-8 rounded-xl shadow-xl max-w-2xl w-full border-2 border-red-200">
+                                <div className="flex items-center gap-3 mb-4 text-red-600">
+                                    <Bug size={32} />
+                                    <h1 className="text-2xl font-bold">Algo salió mal en la aplicación</h1>
+                                </div>
+                                <p className="text-slate-600 mb-4">La aplicación ha detectado un error interno. Por favor, toma una captura de este mensaje.</p>
+                                
+                                <div className="bg-slate-900 text-slate-50 p-4 rounded-lg overflow-auto max-h-64 font-mono text-xs mb-6">
+                                    <p className="font-bold text-red-300 mb-2">{this.state.error && this.state.error.toString()}</p>
+                                    <pre className="opacity-70">{this.state.errorInfo && this.state.errorInfo.componentStack}</pre>
+                                </div>
+
+                                <div className="flex gap-4">
+                                    <button onClick={() => window.location.reload()} className="bg-indigo-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-indigo-700">Recargar Página</button>
+                                    <button onClick={() => { localStorage.removeItem('apertura_firebase_config'); window.location.reload(); }} className="text-slate-500 hover:text-red-500 underline text-sm">Borrar Configuración y Reiniciar</button>
+                                </div>
+                            </div>
+                        </div>
+                    );
+                }
+                return this.props.children; 
+            }
+        }
 
         // --- GESTIÓN DE CONFIGURACIÓN ---
         const getStoredConfig = () => {
             try {
                 if (typeof __firebase_config !== 'undefined') return JSON.parse(__firebase_config);
-                
-                const hardcodedConfig = {
-                    apiKey: "AIzaSyA9gk593APfDsDIG3VGTclmzs8aO9oLgJg", 
-                    authDomain: "control-aperturas-27baf.firebaseapp.com",
-                    projectId: "control-aperturas-27baf",
-                    storageBucket: "control-aperturas-27baf.firebasestorage.app",
-                    messagingSenderId: "291057486602",
-                    appId: "1:291057486602:web:0d05d616ea84cd69e448f3"
-                };
-
-                if (hardcodedConfig.apiKey !== "TU_API_KEY_AQUI") {
-                    return hardcodedConfig;
-                }
-
+                const hardcodedConfig = { apiKey: "TU_API_KEY_AQUI", authDomain: "coria-aperturas.firebaseapp.com", projectId: "coria-aperturas", storageBucket: "coria-aperturas.appspot.com", messagingSenderId: "TU_SENDER_ID", appId: "TU_APP_ID" };
+                if (hardcodedConfig.apiKey !== "TU_API_KEY_AQUI") return hardcodedConfig;
                 const local = localStorage.getItem('apertura_firebase_config');
                 if (local) return JSON.parse(local);
-
-            } catch (e) { console.error("Error leyendo config:", e); }
+            } catch (e) { console.error("Error config:", e); }
             return null;
         };
 
@@ -106,20 +136,12 @@
 
         if (config && config.apiKey) {
             try {
-                // CORRECCIÓN 1 (Continuación): Verificar si la app ya existe
-                if (!getApps().length) {
-                    app = initializeApp(config);
-                } else {
-                    app = getApp();
-                }
-                
+                if (!getApps().length) app = initializeApp(config);
+                else app = getApp();
                 auth = getAuth(app);
                 db = getFirestore(app);
                 isConfigured = true;
-            } catch (e) {
-                console.error("Error iniciando Firebase:", e);
-                // No borramos la config automáticamente por si es un error temporal de red
-            }
+            } catch (e) { console.error("Init Error:", e); }
         }
 
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'coria-app-v1';
@@ -127,25 +149,31 @@
         // --- UTILITIES ---
         const formatDate = (dateString) => {
             if (!dateString) return '-';
-            const date = new Date(dateString);
-            const userTimezoneOffset = date.getTimezoneOffset() * 60000;
-            return new Date(date.getTime() + userTimezoneOffset).toLocaleDateString('es-MX', { year: 'numeric', month: 'short', day: 'numeric' });
+            try {
+                const date = new Date(dateString);
+                if (isNaN(date.getTime())) return '-';
+                const userTimezoneOffset = date.getTimezoneOffset() * 60000;
+                return new Date(date.getTime() + userTimezoneOffset).toLocaleDateString('es-MX', { year: 'numeric', month: 'short', day: 'numeric' });
+            } catch(e) { return '-'; }
         };
 
         const formatDateTime = (timestamp) => {
             if (!timestamp) return '-';
-            const date = timestamp.seconds ? new Date(timestamp.seconds * 1000) : new Date(timestamp);
-            return date.toLocaleDateString('es-MX', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+            try {
+                const date = timestamp.seconds ? new Date(timestamp.seconds * 1000) : new Date(timestamp);
+                if (isNaN(date.getTime())) return '-';
+                return date.toLocaleDateString('es-MX', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+            } catch(e) { return '-'; }
         };
 
         const getDaysDiff = (dateString) => {
             if (!dateString) return null;
-            return Math.ceil((new Date(dateString) - new Date()) / (1000 * 60 * 60 * 24)); 
+            try { return Math.ceil((new Date(dateString) - new Date()) / (1000 * 60 * 60 * 24)); } catch(e) { return null; }
         };
 
         const getDaysSince = (dateString) => {
             if (!dateString) return 999;
-            return Math.floor((new Date() - new Date(dateString)) / (1000 * 60 * 60 * 24));
+            try { return Math.floor((new Date() - new Date(dateString)) / (1000 * 60 * 60 * 24)); } catch(e) { return 999; }
         };
 
         // --- PANTALLA CONFIGURACIÓN ---
@@ -156,14 +184,13 @@
             const handleSave = () => {
                 try {
                     let clean = jsonInput.includes('=') ? jsonInput.substring(jsonInput.indexOf('=') + 1) : jsonInput;
-                    if (clean.trim().endsWith(';')) clean = clean.trim().slice(0, -1);
+                    clean = clean.trim();
+                    if (clean.endsWith(';')) clean = clean.slice(0, -1);
                     const parsed = JSON.parse(clean);
                     if (!parsed.apiKey) throw new Error("Falta apiKey");
                     localStorage.setItem('apertura_firebase_config', JSON.stringify(parsed));
                     window.location.reload();
-                } catch (e) {
-                    setError("Formato inválido. Pega el objeto JSON de Firebase. " + e.message);
-                }
+                } catch (e) { setError("JSON Inválido: " + e.message); }
             };
 
             return (
@@ -172,7 +199,7 @@
                         <div className="text-center mb-6">
                             <div className="bg-indigo-100 p-3 rounded-full inline-block mb-3"><Settings className="w-8 h-8 text-indigo-600" /></div>
                             <h1 className="text-2xl font-bold text-slate-800">Conectar Base de Datos</h1>
-                            <p className="text-slate-500 text-sm mt-2">Pega aquí tu configuración de Firebase para iniciar.</p>
+                            <p className="text-slate-500 text-sm mt-2">Pega tu configuración de Firebase.</p>
                         </div>
                         <textarea className="w-full border rounded p-3 text-xs font-mono h-32 mb-4 bg-slate-50" placeholder='{ "apiKey": "...", ... }' value={jsonInput} onChange={e => setJsonInput(e.target.value)}></textarea>
                         {error && <div className="bg-red-50 text-red-600 p-3 rounded text-sm mb-4 flex gap-2"><AlertCircle size={16}/>{error}</div>}
@@ -183,7 +210,7 @@
         }
 
         // --- APP PRINCIPAL ---
-        function AperturaMaster() {
+        function AppContent() {
             if (!isConfigured) return <ConfigScreen />;
 
             const [user, setUser] = useState(null);
@@ -192,9 +219,8 @@
             const [offices, setOffices] = useState([]);
             const [tickets, setTickets] = useState([]);
             const [loading, setLoading] = useState(true);
-            const [errorMsg, setErrorMsg] = useState(''); // Estado para errores globales
+            const [errorMsg, setErrorMsg] = useState(''); 
             
-            // Modales
             const [showOfficeModal, setShowOfficeModal] = useState(false);
             const [showCompanyModal, setShowCompanyModal] = useState(false);
             const [showTicketModal, setShowTicketModal] = useState(false);
@@ -204,25 +230,21 @@
             const [currentTicket, setCurrentTicket] = useState(null);
             const [searchTerm, setSearchTerm] = useState('');
 
-            // Forms
             const [officeForm, setOfficeForm] = useState({ name: '', address: '', contractEndDate: '', landlordName: '', notes: '', companies: [] });
             const [companyForm, setCompanyForm] = useState({ name: '', isLeader: false, interior: '', assignmentDate: new Date().toISOString().split('T')[0], checklist: { telmexProof: false, fiscalAddressEmail: false, interiorAssigned: false, emailCreated: false, webCreated: false, phoneInstalled: false }, webUrl: '', domainExpirationDate: '', lastWebCheck: '', phoneNumber: '', lastPhoneCheck: '' });
             const [ticketForm, setTicketForm] = useState({ officeId: '', officeName: '', companyName: '', type: 'falla_tecnica', category: 'internet', priority: 'media', status: 'pendiente', description: '', updates: [], newUpdate: '' });
 
-            // Auth & Data
             useEffect(() => {
                 const init = async () => {
                     try {
-                        console.log("Intentando autenticación...");
                         if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                             await signInWithCustomToken(auth, __initial_auth_token);
                         } else {
                             await signInAnonymously(auth);
                         }
-                        console.log("Autenticación exitosa");
                     } catch (e) { 
                         console.error("Auth Error:", e); 
-                        setErrorMsg(prev => prev + ` [Auth: ${e.message}]`);
+                        setErrorMsg("Error Autenticación: " + e.message);
                         setLoading(false); 
                     }
                 };
@@ -234,54 +256,45 @@
                 return () => unsubscribe();
             }, []);
 
-            // CORRECCIÓN 2: Lógica de carga de datos robusta e independiente
             useEffect(() => {
                 if(!user) return;
                 
-                let officesLoaded = false;
-                let ticketsLoaded = false;
+                let officesLoaded = false, ticketsLoaded = false;
+                const checkLoading = () => { if(officesLoaded && ticketsLoaded) setLoading(false); };
 
-                // Función auxiliar para quitar el loading solo cuando AMBOS intentos terminen (éxito o error)
-                const checkLoading = () => {
-                    if(officesLoaded && ticketsLoaded) setLoading(false);
-                };
-
-                const unsub1 = onSnapshot(
-                    collection(db, 'artifacts', appId, 'public', 'data', 'offices'), 
+                const unsub1 = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'offices'), 
                     (s) => { 
                         setOffices(s.docs.map(d=>({id:d.id, ...d.data()}))); 
-                        officesLoaded = true;
-                        checkLoading();
+                        officesLoaded = true; checkLoading();
                     },
-                    (err) => {
-                        console.error("Error Firestore Oficinas:", err);
-                        setErrorMsg(prev => prev + " [Error Datos Oficinas: Permisos o Red]");
-                        officesLoaded = true; // Marcar como "terminado" aunque sea error para quitar el spinner
-                        checkLoading();
+                    (err) => { 
+                        console.error("Offices Error:", err); 
+                        setErrorMsg(prev => prev + " [Oficinas: " + err.code + "]"); 
+                        officesLoaded = true; checkLoading(); 
                     }
                 );
 
-                const unsub2 = onSnapshot(
-                    collection(db, 'artifacts', appId, 'public', 'data', 'tickets'), 
+                const unsub2 = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'tickets'), 
                     (s) => { 
                         const t = s.docs.map(d=>({id:d.id, ...d.data()})).sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
                         setTickets(t); 
-                        ticketsLoaded = true;
-                        checkLoading();
+                        ticketsLoaded = true; checkLoading();
                     },
-                    (err) => {
-                        console.error("Error Firestore Tickets:", err);
-                        setErrorMsg(prev => prev + " [Error Datos Tickets: Permisos o Red]");
-                        ticketsLoaded = true; // Marcar como "terminado" aunque sea error
-                        checkLoading();
+                    (err) => { 
+                        console.error("Tickets Error:", err); 
+                        setErrorMsg(prev => prev + " [Tickets: " + err.code + "]"); 
+                        ticketsLoaded = true; checkLoading(); 
                     }
                 );
 
-                return () => { unsub1(); unsub2(); };
+                return () => { try { unsub1(); unsub2(); } catch(e){} };
             }, [user]);
 
             const canEdit = userRole === 'admin';
             const canDelete = userRole === 'admin';
+
+            // Safe Data Access Helper
+            const safeCompanies = (o) => Array.isArray(o?.companies) ? o.companies : [];
 
             // Actions
             const saveOffice = async (e) => { 
@@ -300,7 +313,7 @@
                 if(!currentOffice) return; 
                 try {
                     const ref = doc(db, 'artifacts', appId, 'public', 'data', 'offices', currentOffice.id); 
-                    let list = [...(currentOffice.companies||[])]; 
+                    let list = [...safeCompanies(currentOffice)]; 
                     if(companyForm.isLeader) list = list.map(c=>({...c, isLeader:false})); 
                     if(currentCompany) list[currentCompany.index] = companyForm; 
                     else list.push(companyForm); 
@@ -322,15 +335,16 @@
             };
 
             const deleteOffice = async (id) => { if(confirm("¿Eliminar oficina?")) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'offices', id)); };
-            const deleteCompany = async (oid, idx) => { if(confirm("¿Eliminar empresa?")) { const o = offices.find(x=>x.id===oid); const list = o.companies.filter((_,i)=>i!==idx); await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'offices', oid), {companies: list}); }};
+            const deleteCompany = async (oid, idx) => { if(confirm("¿Eliminar empresa?")) { const o = offices.find(x=>x.id===oid); const list = safeCompanies(o).filter((_,i)=>i!==idx); await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'offices', oid), {companies: list}); }};
             const deleteTicket = async (id) => { if(confirm("¿Eliminar ticket?")) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tickets', id)); };
-            const performQuickCheck = async (oid, idx, type) => { if(!canEdit) return; const o = offices.find(x=>x.id===oid); const list = [...o.companies]; const key = type==='phone'?'lastPhoneCheck':'lastWebCheck'; list[idx][key] = new Date().toISOString().split('T')[0]; await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'offices', oid), {companies: list}); };
+            const performQuickCheck = async (oid, idx, type) => { if(!canEdit) return; const o = offices.find(x=>x.id===oid); const list = [...safeCompanies(o)]; const key = type==='phone'?'lastPhoneCheck':'lastWebCheck'; list[idx][key] = new Date().toISOString().split('T')[0]; await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'offices', oid), {companies: list}); };
 
             const exportExcel = () => {
                 let csv = "ID,Oficina,Direccion,Vencimiento,Empresa,Interior,Telefono,Web\n";
                 offices.forEach(o => {
-                    if(!o.companies?.length) csv += `"${o.id}","${o.name}","${o.address}","${formatDate(o.contractEndDate)}",,,,\n`;
-                    else o.companies.forEach(c => csv += `"${o.id}","${o.name}","${o.address}","${formatDate(o.contractEndDate)}","${c.name}","${c.interior}","${c.phoneNumber}","${c.webUrl}"\n`);
+                    const comps = safeCompanies(o);
+                    if(!comps.length) csv += `"${o.id}","${o.name}","${o.address}","${formatDate(o.contractEndDate)}",,,,\n`;
+                    else comps.forEach(c => csv += `"${o.id}","${o.name}","${o.address}","${formatDate(o.contractEndDate)}","${c.name}","${c.interior}","${c.phoneNumber}","${c.webUrl}"\n`);
                 });
                 const link = document.createElement("a"); link.href = URL.createObjectURL(new Blob([`\uFEFF${csv}`], {type:'text/csv'})); link.download = "Reporte.csv"; link.click();
             };
@@ -339,7 +353,7 @@
                 const list = [];
                 offices.forEach(o => {
                     if(o.contractEndDate && getDaysDiff(o.contractEndDate) <= 90) list.push({type:'contract', priority:1, title:`Contrato: ${o.name}`, msg:`Vence el ${formatDate(o.contractEndDate)}`, data:o});
-                    o.companies?.forEach((c,i) => {
+                    safeCompanies(o).forEach((c,i) => {
                         if(c.domainExpirationDate && getDaysDiff(c.domainExpirationDate) <= 90) list.push({type:'domain', priority:2, title:`Dominio: ${c.name}`, msg:`Vence el ${formatDate(c.domainExpirationDate)}`, data:{oid:o.id, idx:i, c}});
                         if(c.checklist?.phoneInstalled && getDaysSince(c.lastPhoneCheck) >= 15) list.push({type:'phone', actionType:'quickCheckPhone', priority:1, title:`Teléfono: ${c.name}`, msg:`Revisar línea (última: ${formatDate(c.lastPhoneCheck)})`, data:{officeId:o.id, companyIndex:i}});
                         if(c.checklist?.webCreated && getDaysSince(c.lastWebCheck) >= 30) list.push({type:'web', actionType:'quickCheckWeb', priority:3, title:`Web: ${c.name}`, msg:`Revisar sitio (última: ${formatDate(c.lastWebCheck)})`, data:{officeId:o.id, companyIndex:i}});
@@ -348,18 +362,14 @@
                 return list.sort((a,b)=>a.priority-b.priority);
             }, [offices]);
 
-            // CORRECCIÓN 3: Si hay error, mostrarlo pero permitir reintentar limpiamente
             if (errorMsg && loading === false) return (
                 <div className="h-screen flex items-center justify-center p-6 bg-slate-50">
                     <div className="bg-white p-8 rounded-xl shadow-xl max-w-md text-center border-2 border-red-100">
                         <div className="bg-red-100 p-4 rounded-full inline-block mb-4"><ShieldAlert className="w-10 h-10 text-red-600"/></div>
-                        <h2 className="text-xl font-bold text-slate-800 mb-2">Error de Sistema</h2>
-                        <div className="text-xs text-left bg-slate-50 p-3 rounded border font-mono mb-6 overflow-auto max-h-32">
-                            <p className="font-bold text-slate-700 mb-1">Detalle del Error:</p>
-                            <p className="text-red-600">{errorMsg}</p>
-                        </div>
+                        <h2 className="text-xl font-bold text-slate-800 mb-2">Error de Conexión</h2>
+                        <p className="text-sm text-slate-600 mb-6 bg-slate-50 p-3 rounded border font-mono break-all">{errorMsg}</p>
                         <div className="flex flex-col gap-2">
-                            <button onClick={()=>window.location.reload()} className="w-full bg-indigo-600 text-white py-2 rounded-lg font-bold hover:bg-indigo-700">Reintentar Conexión</button>
+                            <button onClick={()=>window.location.reload()} className="w-full bg-indigo-600 text-white py-2 rounded-lg font-bold hover:bg-indigo-700">Reintentar</button>
                             <button onClick={()=>{localStorage.removeItem('apertura_firebase_config'); window.location.reload()}} className="w-full text-slate-500 py-2 text-sm hover:text-slate-700 underline">Cerrar Sesión / Cambiar DB</button>
                         </div>
                     </div>
@@ -406,8 +416,8 @@
                             {activeTab === 'dashboard' && (
                                 <div className="max-w-6xl mx-auto space-y-6">
                                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                                        <div className="bg-white p-4 rounded shadow border"><p className="text-xs text-slate-500 font-bold">EMPRESAS</p><h3 className="text-2xl font-bold">{offices.reduce((a,b)=>a+(b.companies?.length||0),0)}</h3></div>
-                                        <div className="bg-white p-4 rounded shadow border"><p className="text-xs text-slate-500 font-bold">ESPACIOS</p><h3 className="text-2xl font-bold text-indigo-600">{(offices.length*5)-offices.reduce((a,b)=>a+(b.companies?.length||0),0)}</h3></div>
+                                        <div className="bg-white p-4 rounded shadow border"><p className="text-xs text-slate-500 font-bold">EMPRESAS</p><h3 className="text-2xl font-bold">{offices.reduce((a,b)=>a+(safeCompanies(b).length),0)}</h3></div>
+                                        <div className="bg-white p-4 rounded shadow border"><p className="text-xs text-slate-500 font-bold">ESPACIOS</p><h3 className="text-2xl font-bold text-indigo-600">{(offices.length*5)-offices.reduce((a,b)=>a+(safeCompanies(b).length),0)}</h3></div>
                                         <div className="bg-white p-4 rounded shadow border"><p className="text-xs text-slate-500 font-bold">ALERTAS</p><h3 className="text-2xl font-bold text-amber-500">{alerts.length}</h3></div>
                                         <div className="bg-white p-4 rounded shadow border"><p className="text-xs text-slate-500 font-bold">TICKETS</p><h3 className="text-2xl font-bold text-slate-700">{tickets.filter(t=>t.status!=='resuelto').length}</h3></div>
                                     </div>
@@ -429,17 +439,17 @@
                                 <div className="max-w-6xl mx-auto space-y-6">
                                     <div className="relative"><Search className="absolute left-3 top-3 text-slate-400" size={18}/><input className="w-full pl-10 p-3 rounded border shadow-sm outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Buscar oficina o empresa..." value={searchTerm} onChange={e=>setSearchTerm(e.target.value)}/></div>
                                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                                        {offices.filter(o=>o.name.toLowerCase().includes(searchTerm.toLowerCase()) || o.companies?.some(c=>c.name.toLowerCase().includes(searchTerm.toLowerCase()))).map(o=>(
+                                        {offices.filter(o=>o.name.toLowerCase().includes(searchTerm.toLowerCase()) || safeCompanies(o).some(c=>c.name.toLowerCase().includes(searchTerm.toLowerCase()))).map(o=>(
                                             <div key={o.id} className="bg-white rounded border shadow-sm">
                                                 <div className="p-4 border-b bg-slate-50 flex justify-between items-start">
                                                     <div><h3 className="font-bold text-lg">{o.name}</h3><p className="text-xs text-slate-500">{o.address}</p></div>
                                                     <div className="text-right">
-                                                        <span className="text-xs font-bold px-2 py-1 bg-white border rounded">{(o.companies?.length||0)}/5</span>
+                                                        <span className="text-xs font-bold px-2 py-1 bg-white border rounded">{(safeCompanies(o).length)}/5</span>
                                                         {canEdit && <div className="mt-2 flex gap-2 justify-end"><button onClick={()=>{setCurrentOffice(o); setOfficeForm(o); setShowOfficeModal(true)}}><Edit size={16} className="text-slate-400 hover:text-indigo-600"/></button><button onClick={()=>deleteOffice(o.id)}><Trash2 size={16} className="text-slate-400 hover:text-red-600"/></button></div>}
                                                     </div>
                                                 </div>
                                                 <div className="p-4 space-y-2">
-                                                    {o.companies?.map((c,i)=>(
+                                                    {safeCompanies(o).map((c,i)=>(
                                                         <div key={i} className="border p-2 rounded flex justify-between items-center bg-white hover:shadow-sm">
                                                             <div>
                                                                 <p className="font-bold text-sm flex items-center gap-1">{c.isLeader && <Crown size={12} className="text-amber-500 fill-amber-500"/>} {c.name}</p>
@@ -448,8 +458,8 @@
                                                             <div className="flex gap-1">{canEdit ? <><button onClick={()=>{setCurrentOffice(o); setCurrentCompany({index:i}); setCompanyForm(c); setShowCompanyModal(true)}}><Edit size={14} className="text-indigo-400"/></button><button onClick={()=>deleteCompany(o.id,i)}><Trash2 size={14} className="text-red-300 hover:text-red-500"/></button></> : <button onClick={()=>{setCurrentOffice(o); setCurrentCompany({index:i}); setCompanyForm(c); setShowCompanyModal(true)}}><Eye size={14} className="text-slate-400"/></button>}</div>
                                                         </div>
                                                     ))}
-                                                    {(!o.companies?.length) && <div className="text-center text-xs italic text-slate-300 py-2">Vacía</div>}
-                                                    {canEdit && (o.companies?.length||0)<5 && <button onClick={()=>{setCurrentOffice(o); setCurrentCompany(null); setCompanyForm({name:'', isLeader:false, interior:'', assignmentDate:new Date().toISOString().split('T')[0], checklist:{telmexProof:false, fiscalAddressEmail:false, interiorAssigned:false, emailCreated:false, webCreated:false, phoneInstalled:false}, webUrl:'', domainExpirationDate:'', phoneNumber:''}); setShowCompanyModal(true)}} className="w-full border-2 border-dashed py-1 text-xs font-bold text-indigo-400 hover:bg-indigo-50 rounded">Agrega Empresa</button>}
+                                                    {(!safeCompanies(o).length) && <div className="text-center text-xs italic text-slate-300 py-2">Vacía</div>}
+                                                    {canEdit && (safeCompanies(o).length)<5 && <button onClick={()=>{setCurrentOffice(o); setCurrentCompany(null); setCompanyForm({name:'', isLeader:false, interior:'', assignmentDate:new Date().toISOString().split('T')[0], checklist:{telmexProof:false, fiscalAddressEmail:false, interiorAssigned:false, emailCreated:false, webCreated:false, phoneInstalled:false}, webUrl:'', domainExpirationDate:'', phoneNumber:''}); setShowCompanyModal(true)}} className="w-full border-2 border-dashed py-1 text-xs font-bold text-indigo-400 hover:bg-indigo-50 rounded">Agrega Empresa</button>}
                                                 </div>
                                             </div>
                                         ))}
@@ -572,8 +582,11 @@
         }
 
         const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<AperturaMaster />);
+        root.render(
+            <ErrorBoundary>
+                <AppContent />
+            </ErrorBoundary>
+        );
     </script>
 </body>
 </html>
-
