@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CORIA - AperturaMaster</title>
+    <title>Control - Empresas</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
@@ -53,7 +53,7 @@
     <div id="root">
         <div class="h-screen flex flex-col items-center justify-center text-slate-400 gap-4">
             <div class="loading-spinner"></div>
-            <p class="text-sm">Cargando CORIA System...</p>
+            <p class="text-sm">Cargando sistema...</p>
         </div>
     </div>
 
@@ -63,7 +63,7 @@
         import { initializeApp, getApps, getApp } from 'firebase/app';
         import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
         import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, serverTimestamp } from 'firebase/firestore';
-        import { LayoutDashboard, Building2, Building, LifeBuoy, Plus, Edit, Trash2, Settings, ShieldAlert, LogOut, User, Lock, Mail, Info, Database, Menu, X, Crown, AlertTriangle, Download, History, MapPin, CheckSquare, Globe, Phone, FileText, Key, Calendar, MessageSquare, Archive, Eye, EyeOff, DollarSign, Zap, Droplets, Wrench } from 'lucide-react';
+        import { LayoutDashboard, Building2, Building, LifeBuoy, Plus, Edit, Trash2, Settings, ShieldAlert, LogOut, User, Lock, Mail, Info, Database, Menu, X, Crown, AlertTriangle, Download, History, MapPin, CheckSquare, Globe, Phone, FileText, Key, Calendar, MessageSquare, Archive, Eye, EyeOff, DollarSign, Zap, Droplets, Wrench, ChevronDown, ChevronUp, AlertCircle, UserCheck } from 'lucide-react';
 
         // ------------------------------------------------------------------
         // ---  ¡ATENCIÓN! PEGA AQUÍ TUS DATOS DE FIREBASE (Project Settings) ---
@@ -133,7 +133,47 @@
             return totalChecks === 0 ? 0 : Math.round((completedChecks / totalChecks) * 100);
         };
 
+        const calculateCompanyProgress = (company) => {
+            const checklistKeys = ['cifUpdated', 'interiorAssigned', 'acrylicSign', 'phoneLine', 'webPage', 'phoneInstalled', 'emailCreated'];
+            if (!company.checklist) return 0;
+            let completed = 0;
+            checklistKeys.forEach(key => {
+                if (company.checklist[key]) completed++;
+            });
+            return Math.round((completed / checklistKeys.length) * 100);
+        };
+
+        const getLeaderCompany = (office) => {
+            if(!office.companies) return null;
+            return office.companies.find(c => c.isLeader && c.status !== 'archived');
+        };
+
         // --- COMPONENTES ---
+
+        // Componente Circular Progress
+        const CircularProgress = ({ percentage, size = 40, strokeWidth = 3, label }) => {
+            const radius = (size - strokeWidth) / 2;
+            const circumference = radius * 2 * Math.PI;
+            const offset = circumference - (percentage / 100) * circumference;
+            
+            let colorClass = "text-red-500";
+            if(percentage >= 50) colorClass = "text-amber-500";
+            if(percentage >= 80) colorClass = "text-indigo-500";
+            if(percentage === 100) colorClass = "text-emerald-500";
+
+            return (
+                <div className="flex flex-col items-center gap-1 group relative">
+                    <div className="relative flex items-center justify-center" style={{ width: size, height: size }}>
+                        <svg className="transform -rotate-90 w-full h-full">
+                            <circle cx={size / 2} cy={size / 2} r={radius} stroke="currentColor" strokeWidth={strokeWidth} fill="transparent" className="text-slate-200" />
+                            <circle cx={size / 2} cy={size / 2} r={radius} stroke="currentColor" strokeWidth={strokeWidth} fill="transparent" strokeDasharray={circumference} strokeDashoffset={offset} className={`${colorClass} transition-all duration-500 ease-out`} />
+                        </svg>
+                        <span className="absolute text-[9px] font-bold text-slate-700">{percentage}%</span>
+                    </div>
+                    {label && <span className="text-[10px] text-slate-500 truncate max-w-[70px] text-center" title={label}>{label}</span>}
+                </div>
+            );
+        };
 
         function SetupRequiredScreen() {
             return (
@@ -175,12 +215,12 @@
                             <div className="bg-indigo-600 w-16 h-16 rounded-xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-indigo-500/30">
                                 <Building2 className="text-white w-8 h-8" />
                             </div>
-                            <h1 className="text-2xl font-bold text-slate-800">CORIA System</h1>
+                            <h1 className="text-2xl font-bold text-slate-800">Control Empresas</h1>
                             <p className="text-slate-500 text-sm mt-1">Gestión Integral de Aperturas</p>
                         </div>
                         {error && <div className="bg-red-50 text-red-600 p-3 rounded-lg mb-6 text-sm flex gap-2 items-center border border-red-100"><ShieldAlert size={16}/> {error}</div>}
                         <form onSubmit={handleLogin} className="space-y-4">
-                            <div className="relative"><Mail className="absolute left-3 top-3 text-slate-400" size={18} /><input type="email" required className="w-full pl-10 pr-4 py-3 bg-slate-50 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="correo@coria.com" value={email} onChange={e=>setEmail(e.target.value)}/></div>
+                            <div className="relative"><Mail className="absolute left-3 top-3 text-slate-400" size={18} /><input type="email" required className="w-full pl-10 pr-4 py-3 bg-slate-50 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="consultas@excel.com.mx" value={email} onChange={e=>setEmail(e.target.value)}/></div>
                             <div className="relative"><Lock className="absolute left-3 top-3 text-slate-400" size={18} /><input type="password" required className="w-full pl-10 pr-4 py-3 bg-slate-50 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="Contraseña" value={password} onChange={e=>setPassword(e.target.value)}/></div>
                             <button disabled={loading} className="w-full bg-indigo-600 text-white font-bold py-3 rounded-lg hover:bg-indigo-700 transition disabled:opacity-50">{loading ? 'Validando...' : 'Iniciar Sesión'}</button>
                         </form>
@@ -199,8 +239,9 @@
             const [tab, setTab] = useState('dashboard');
             const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
             
-            // Estado Historial
+            // Estado Historial y Despliegue
             const [showHistory, setShowHistory] = useState(false);
+            const [expandedOffices, setExpandedOffices] = useState({}); 
 
             // Datos
             const [items, setItems] = useState({ offices: [], tickets: [] });
@@ -210,14 +251,12 @@
             const [archiveModal, setArchiveModal] = useState(null); 
             const [archiveReason, setArchiveReason] = useState('');
             
-            // Estado de Formularios (ACTUALIZADO OFICINA)
+            // Estado de Formularios
             const [forms, setForms] = useState({ 
                 office: { 
                     name: '', address: '', contractEndDate: '', 
-                    signerName: '', // Quien firma
-                    landlordName: '', landlordPhone: '', landlordEmail: '', // Datos Arrendador
-                    rentAmount: '', invoiceAmount: '', // Datos Financieros
-                    servicesIncluded: { water: false, light: false, maintenance: false }, // Servicios
+                    signerName: '', landlordName: '', landlordPhone: '', landlordEmail: '', 
+                    rentAmount: '', invoiceAmount: '', servicesIncluded: { water: false, light: false, maintenance: false },
                     notes: '', companies: [], status: 'active'
                 },
                 company: { 
@@ -234,11 +273,23 @@
                     }
                 },
                 ticket: { 
-                    officeId: '', category: 'internet', priority: 'media', description: '', status: 'pendiente', updates: [], newUpdate: '' 
+                    officeId: '', companyId: '', isGeneralIssue: false,
+                    category: 'Falla de Internet', priority: 'media', description: '', status: 'pendiente', 
+                    assignedTo: '', updates: [], newUpdate: '' 
                 }
             });
 
-            // Mapeo checklist
+            const ticketCategories = [
+                'Falla de Internet', 
+                'Falla Eléctrica (Sin Luz)', 
+                'Falla en Equipo Telefónico', 
+                'Falta de Agua',
+                'Mantenimiento General',
+                'Limpieza',
+                'Acceso / Seguridad',
+                'Otro'
+            ];
+
             const checklistLabels = {
                 cifUpdated: 'Ya cuenta con CIF actualizado',
                 interiorAssigned: 'Interior Asignado',
@@ -294,6 +345,10 @@
             }, [user]);
 
             // Handlers
+            const toggleOffice = (id) => {
+                setExpandedOffices(prev => ({...prev, [id]: !prev[id]}));
+            };
+
             const saveOffice = async () => {
                 const ref = collection(db, 'artifacts', appId, 'public', 'data', 'offices');
                 if(modal.data) await updateDoc(doc(ref, modal.data.id), forms.office);
@@ -317,23 +372,66 @@
             const saveTicket = async () => {
                 const ref = collection(db, 'artifacts', appId, 'public', 'data', 'tickets');
                 const office = items.offices.find(o => o.id === forms.ticket.officeId);
+                
                 let data = { ...forms.ticket };
+                
+                // Resolver nombres
+                data.officeName = office?.name || 'Desconocida';
+                
+                if (data.isGeneralIssue) {
+                    data.companyName = 'GENERAL (Toda la Oficina)';
+                    data.companyId = 'general';
+                } else {
+                    const company = office?.companies?.find((c, idx) => idx.toString() === data.companyId);
+                    data.companyName = company ? company.name : 'Desconocida';
+                }
+
                 if(modal.data) {
+                    const oldStatus = modal.data.status;
+                    const newStatus = data.status;
+                    
+                    if(oldStatus !== newStatus && !data.newUpdate.trim()) {
+                        alert("⚠️ IMPORTANTE: Para cambiar el estado del ticket, debes escribir una observación o comentario.");
+                        return;
+                    }
+
                     if(data.newUpdate) {
-                        data.updates = [...(data.updates||[]), {text: data.newUpdate, date: new Date().toISOString(), author: user.email}];
+                        let finalText = data.newUpdate;
+                        if(oldStatus !== newStatus) {
+                            finalText = `[CAMBIO DE ESTADO: ${oldStatus.toUpperCase()} ➝ ${newStatus.toUpperCase()}] ${finalText}`;
+                        }
+                        data.updates = [...(data.updates||[]), {text: finalText, date: new Date().toISOString(), author: user.email}];
                         delete data.newUpdate;
                     }
+                    
+                    delete data.isGeneralIssue; 
                     await updateDoc(doc(ref, modal.data.id), data);
                 } else {
-                    data.officeName = office?.name || '?';
                     data.createdAt = serverTimestamp();
                     delete data.newUpdate;
+                    delete data.isGeneralIssue;
                     await addDoc(ref, data);
                 }
                 setModal(null);
             };
 
-            // ARCHIVAR
+            const handleReopenTicket = async () => {
+                if(!forms.ticket.newUpdate.trim()) {
+                    alert("Para reabrir el ticket, escribe el motivo en el campo de 'Agregar Avance'.");
+                    return;
+                }
+                const ref = collection(db, 'artifacts', appId, 'public', 'data', 'tickets');
+                let data = { ...forms.ticket, status: 'pendiente' }; 
+                
+                const reopenText = `[TICKET REABIERTO] ${forms.ticket.newUpdate}`;
+                data.updates = [...(data.updates||[]), {text: reopenText, date: new Date().toISOString(), author: user.email}];
+                delete data.newUpdate;
+                delete data.isGeneralIssue;
+
+                await updateDoc(doc(ref, modal.data.id), data);
+                setModal(null);
+            };
+
             const handleArchive = async () => {
                 if (!archiveReason.trim()) return alert("Debes escribir un motivo.");
                 const item = archiveModal.data;
@@ -367,7 +465,7 @@
                 });
                 const link = document.createElement("a");
                 link.href = URL.createObjectURL(new Blob([`\uFEFF${csv}`], {type:'text/csv'}));
-                link.download = "Reporte_CORIA.csv";
+                link.download = "Reporte_controlempresas.csv";
                 link.click();
             };
 
@@ -397,7 +495,7 @@
                         <div className="p-6 border-b border-slate-800 flex items-center justify-between">
                             <div className="flex items-center gap-3">
                                 <div className="bg-indigo-600 p-2 rounded-lg"><Building2 size={20}/></div>
-                                <div><h1 className="font-bold tracking-wider">CORIA</h1><p className="text-[10px] text-indigo-400 uppercase tracking-widest">Aperturas</p></div>
+                                <div><h1 className="font-bold tracking-wider">Control</h1><p className="text-[10px] text-indigo-400 uppercase tracking-widest">Aperturas</p></div>
                             </div>
                             <button onClick={()=>setMobileMenuOpen(false)} className="md:hidden text-slate-400"><X size={20}/></button>
                         </div>
@@ -420,7 +518,6 @@
                                 <div><h2 className="text-xl font-bold capitalize text-slate-800">{tab === 'tickets' ? 'Mesa de Ayuda' : tab}</h2><p className="text-xs text-slate-400 mt-1 hidden md:block">Gestión operativa</p></div>
                             </div>
                             <div className="flex gap-2 items-center">
-                                {/* SWITCH DE HISTORIAL */}
                                 {tab === 'offices' && (
                                     <div className="flex items-center gap-2 mr-2 bg-slate-100 rounded-full px-3 py-1">
                                         <span className={`text-[10px] font-bold uppercase ${showHistory ? 'text-slate-500' : 'text-indigo-600'}`}>Activos</span>
@@ -438,7 +535,7 @@
                                 {userRole === 'admin' && (
                                     <>
                                         {tab === 'offices' && <button onClick={()=>{setForms({...forms, office: {name:'', address:'', contractEndDate:'', signerName:'', landlordName:'', landlordPhone:'', landlordEmail:'', rentAmount:'', invoiceAmount:'', servicesIncluded:{water:false, light:false, maintenance:false}, notes:'', companies:[], status: 'active'}}); setModal({type:'office', data:null})}} className="bg-indigo-600 text-white px-3 py-2 rounded-lg flex gap-2 items-center text-xs md:text-sm font-bold hover:bg-indigo-700 transition"><Plus size={16}/><span className="hidden md:inline">Nueva Oficina</span></button>}
-                                        {tab === 'tickets' && <button onClick={()=>{setForms({...forms, ticket: {officeId:'', category:'internet', priority:'media', description:'', status:'pendiente', updates:[], newUpdate:''}}); setModal({type:'ticket', data:null})}} className="bg-indigo-600 text-white px-3 py-2 rounded-lg flex gap-2 items-center text-xs md:text-sm font-bold hover:bg-indigo-700 transition"><Plus size={16}/><span className="hidden md:inline">Nuevo Ticket</span></button>}
+                                        {tab === 'tickets' && <button onClick={()=>{setForms({...forms, ticket: {officeId:'', companyId:'', isGeneralIssue: false, category:'Falla de Internet', priority:'media', description:'', status:'pendiente', updates:[], newUpdate:''}}); setModal({type:'ticket', data:null})}} className="bg-indigo-600 text-white px-3 py-2 rounded-lg flex gap-2 items-center text-xs md:text-sm font-bold hover:bg-indigo-700 transition"><Plus size={16}/><span className="hidden md:inline">Nuevo Ticket</span></button>}
                                     </>
                                 )}
                             </div>
@@ -446,12 +543,91 @@
 
                         <div className="flex-1 overflow-auto p-4 md:p-8">
                             {tab === 'dashboard' && (
-                                <div className="max-w-6xl mx-auto space-y-6 animate-[fadeIn_0.3s_ease-out]">
+                                <div className="max-w-7xl mx-auto space-y-8 animate-[fadeIn_0.3s_ease-out]">
                                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                                         <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 text-center"><h3 className="text-slate-500 text-xs font-bold uppercase">Oficinas Activas</h3><p className="text-3xl font-bold text-slate-800 mt-2">{items.offices.filter(o=>o.status!=='archived').length}</p></div>
                                         <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 text-center"><h3 className="text-slate-500 text-xs font-bold uppercase">Empresas Activas</h3><p className="text-3xl font-bold text-slate-800 mt-2">{items.offices.reduce((a,b)=>a+(b.companies?.filter(c=>c.status!=='archived').length||0),0)}</p></div>
                                         <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 text-center"><h3 className="text-slate-500 text-xs font-bold uppercase">Tickets</h3><p className="text-3xl font-bold text-slate-800 mt-2">{items.tickets.filter(t=>t.status!=='resuelto').length}</p></div>
                                         <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 text-center"><h3 className="text-slate-500 text-xs font-bold uppercase">Alertas</h3><p className="text-3xl font-bold text-amber-500 mt-2">{alerts.length}</p></div>
+                                    </div>
+
+                                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                                        <div className="bg-slate-50 p-4 border-b border-slate-200 flex justify-between items-center">
+                                            <h3 className="font-bold text-slate-800 flex gap-2 items-center"><Building2 size={18}/> Resumen de Arrendamientos</h3>
+                                        </div>
+                                        <div className="overflow-x-auto">
+                                            <table className="w-full text-left text-sm">
+                                                <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-xs">
+                                                    <tr>
+                                                        <th className="p-4">Oficina</th>
+                                                        <th className="p-4">Contrato Vence</th>
+                                                        <th className="p-4 text-center">Empresas</th>
+                                                        <th className="p-4">Empresa Líder</th>
+                                                        <th className="p-4 text-center">Estatus</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-slate-100">
+                                                    {items.offices.filter(o => o.status !== 'archived').map(o => {
+                                                        const activeCompanies = (o.companies||[]).filter(c => c.status !== 'archived');
+                                                        const leader = getLeaderCompany(o);
+                                                        const daysLeft = o.contractEndDate ? getDaysDiff(o.contractEndDate) : null;
+                                                        return (
+                                                            <tr key={o.id} className="hover:bg-slate-50 transition">
+                                                                <td className="p-4">
+                                                                    <p className="font-bold text-slate-800">{o.name}</p>
+                                                                    <p className="text-xs text-slate-400 truncate max-w-[200px]">{o.address}</p>
+                                                                </td>
+                                                                <td className="p-4">
+                                                                    {o.contractEndDate ? (
+                                                                        <div className={`flex flex-col ${daysLeft <= 90 ? 'text-red-600' : 'text-slate-600'}`}>
+                                                                            <span className="font-bold">{formatDate(o.contractEndDate)}</span>
+                                                                            <span className="text-[10px]">Quedan {daysLeft} días</span>
+                                                                        </div>
+                                                                    ) : <span className="text-slate-400 italic">-</span>}
+                                                                </td>
+                                                                <td className="p-4 text-center font-bold text-indigo-600">{activeCompanies.length}</td>
+                                                                <td className="p-4">
+                                                                    {leader ? (
+                                                                        <span className="flex items-center gap-1 text-slate-700 font-medium"><Crown size={12} className="text-amber-500 fill-amber-500"/> {leader.name}</span>
+                                                                    ) : <span className="text-slate-400 text-xs italic">Sin asignar</span>}
+                                                                </td>
+                                                                <td className="p-4 text-center">
+                                                                    <span className="bg-emerald-100 text-emerald-700 text-[10px] px-2 py-1 rounded-full font-bold uppercase">Activa</span>
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    })}
+                                                    {items.offices.filter(o => o.status !== 'archived').length === 0 && (
+                                                        <tr><td colSpan="5" className="p-8 text-center text-slate-400 italic">No hay oficinas activas registradas.</td></tr>
+                                                    )}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+
+                                    {/* CUMPLIMIENTO POR EMPRESA */}
+                                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                                        <div className="bg-slate-50 p-4 border-b border-slate-200">
+                                            <h3 className="font-bold text-slate-800 flex gap-2 items-center"><CheckSquare size={18}/> Cumplimiento de Checklist por Oficina</h3>
+                                        </div>
+                                        <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                            {items.offices.filter(o => o.status !== 'archived').map(o => (
+                                                <div key={o.id} className="border border-slate-100 rounded-lg p-4 bg-slate-50/50 hover:shadow-md transition">
+                                                    <div className="flex justify-between items-start mb-3">
+                                                        <h4 className="font-bold text-sm text-slate-700">{o.name}</h4>
+                                                        <span className="text-[10px] text-slate-400 bg-white px-2 py-1 rounded border">{o.companies?.filter(c => c.status !== 'archived').length || 0} Empresas</span>
+                                                    </div>
+                                                    <div className="flex flex-wrap gap-4 justify-start">
+                                                        {(o.companies || []).filter(c => c.status !== 'archived').map((c, idx) => (
+                                                            <CircularProgress key={idx} percentage={calculateCompanyProgress(c)} label={c.name} />
+                                                        ))}
+                                                        {(o.companies || []).filter(c => c.status !== 'archived').length === 0 && (
+                                                            <p className="text-xs text-slate-400 italic">Sin empresas activas</p>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
                                     </div>
 
                                     {alerts.length > 0 && (
@@ -476,82 +652,93 @@
                                         const progress = calculateProgress(o);
                                         const isArchivedOffice = o.status === 'archived';
                                         const visibleCompanies = (o.companies||[]).filter(c => showHistory ? true : c.status !== 'archived');
+                                        const isExpanded = expandedOffices[o.id];
 
                                         return (
                                         <div key={o.id} className={`bg-white rounded-xl shadow-sm border overflow-hidden hover:shadow-md transition ${isArchivedOffice ? 'border-slate-300 opacity-75' : 'border-slate-200'}`}>
-                                            <div className={`p-5 border-b flex justify-between items-start ${isArchivedOffice ? 'bg-slate-100' : 'bg-slate-50/50'}`}>
+                                            <div className={`p-5 flex justify-between items-center cursor-pointer ${isArchivedOffice ? 'bg-slate-100' : 'bg-slate-50/50'}`} onClick={() => toggleOffice(o.id)}>
                                                 <div>
                                                     <div className="flex gap-2 items-center">
                                                         <h3 className="font-bold text-lg text-slate-800">{o.name}</h3>
                                                         {isArchivedOffice && <span className="bg-slate-200 text-slate-600 text-[10px] font-bold px-2 py-0.5 rounded uppercase">Archivada</span>}
                                                     </div>
-                                                    <p className="text-xs text-slate-500 flex items-center gap-1"><MapPin size={12}/> {o.address}</p>
-                                                    {o.contractEndDate && <p className="text-[10px] text-slate-400 mt-1">Vence contrato: {formatDate(o.contractEndDate)}</p>}
-                                                    {isArchivedOffice && <p className="text-[10px] text-red-400 mt-1 italic">Baja: {formatDate(o.archivedDate)} - {o.archivedReason}</p>}
+                                                    <p className="text-xs text-slate-500 flex items-center gap-1 mt-1"><MapPin size={12}/> {o.address}</p>
                                                 </div>
-                                                <div className="text-right">
-                                                    {userRole === 'admin' && !isArchivedOffice && (
-                                                        <div className="flex gap-2 justify-end mb-2">
-                                                            <button onClick={()=>{setForms({...forms, office:o}); setModal({type:'office', data:o})}} className="p-2 hover:bg-white hover:shadow-sm rounded-lg text-slate-400 hover:text-indigo-600 transition"><Edit size={16}/></button>
-                                                            <button onClick={()=>{setArchiveModal({type:'office', data:o}); setArchiveReason('')}} className="p-2 hover:bg-white hover:shadow-sm rounded-lg text-slate-400 hover:text-red-500 transition"><Trash2 size={16}/></button>
-                                                        </div>
-                                                    )}
-                                                    <span className="text-xs font-bold px-2 py-1 bg-white rounded border border-slate-200 text-slate-600">
-                                                        {visibleCompanies.length} Empresas
-                                                    </span>
+                                                <div className="flex items-center gap-4">
+                                                    <div className="text-right hidden sm:block">
+                                                        <span className="text-xs font-bold px-2 py-1 bg-white rounded border border-slate-200 text-slate-600">
+                                                            {visibleCompanies.length} Empresas
+                                                        </span>
+                                                        {o.contractEndDate && <p className="text-[10px] text-slate-400 mt-1 text-right">Vence: {formatDate(o.contractEndDate)}</p>}
+                                                    </div>
+                                                    <div className={`p-1 rounded-full hover:bg-slate-200 transition ${isExpanded ? 'rotate-180' : ''}`}>
+                                                        <ChevronDown size={20} className="text-slate-400"/>
+                                                    </div>
                                                 </div>
                                             </div>
                                             
-                                            {/* BARRA DE PROGRESO */}
-                                            {!isArchivedOffice && (
-                                                <div className="px-5 pt-4">
-                                                    <div className="flex justify-between items-center mb-1">
-                                                        <span className="text-xs font-bold text-slate-500 uppercase">Cumplimiento Checklist</span>
-                                                        <span className={`text-xs font-bold ${progress === 100 ? 'text-emerald-600' : 'text-indigo-600'}`}>{progress}%</span>
-                                                    </div>
-                                                    <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
-                                                        <div className={`h-full rounded-full transition-all duration-500 ${progress === 100 ? 'bg-emerald-500' : 'bg-indigo-500'}`} style={{ width: `${progress}%` }}></div>
-                                                    </div>
-                                                </div>
-                                            )}
-
-                                            <div className="p-5 space-y-3">
-                                                {visibleCompanies.map((c, i) => {
-                                                    const isArchivedCompany = c.status === 'archived';
-                                                    return (
-                                                    <div key={i} className={`flex justify-between items-center border p-3 rounded-lg transition group ${isArchivedCompany ? 'bg-slate-50 border-slate-200 opacity-60' : 'hover:border-indigo-100 hover:bg-indigo-50/30 border-slate-100'}`}>
-                                                        <div className="flex gap-3 items-center">
-                                                            <div className={`p-2 rounded-lg ${isArchivedCompany ? 'bg-slate-200 text-slate-500' : c.isLeader?'bg-amber-100 text-amber-600':'bg-indigo-100 text-indigo-600'}`}>
-                                                                {isArchivedCompany ? <Archive size={16}/> : c.isLeader?<Crown size={16}/>:<Building2 size={16}/>}
+                                            {isExpanded && (
+                                                <div className="border-t border-slate-100 animate-[fadeIn_0.2s_ease-out]">
+                                                    <div className="bg-slate-50 px-5 py-3 border-b border-slate-100 flex justify-between items-center">
+                                                        {!isArchivedOffice && (
+                                                            <div className="flex-1 mr-8">
+                                                                <div className="flex justify-between items-center mb-1">
+                                                                    <span className="text-[10px] font-bold text-slate-500 uppercase">Checklist General</span>
+                                                                    <span className={`text-[10px] font-bold ${progress === 100 ? 'text-emerald-600' : 'text-indigo-600'}`}>{progress}%</span>
+                                                                </div>
+                                                                <div className="w-full bg-slate-200 rounded-full h-1.5 overflow-hidden">
+                                                                    <div className={`h-full rounded-full transition-all duration-500 ${progress === 100 ? 'bg-emerald-500' : 'bg-indigo-500'}`} style={{ width: `${progress}%` }}></div>
+                                                                </div>
                                                             </div>
-                                                            <div>
-                                                                <p className="font-bold text-sm text-slate-700 flex items-center gap-2">
-                                                                    {c.name} 
-                                                                    {c.isLeader && !isArchivedCompany && <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded border border-amber-200">Líder</span>}
-                                                                    {isArchivedCompany && <span className="text-[10px] bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded border">Baja</span>}
-                                                                </p>
-                                                                {!isArchivedCompany ? (
-                                                                    <div className="flex gap-2 text-xs text-slate-400 mt-0.5">
-                                                                        {c.webUrl && <a href={c.webUrl} target="_blank" className="hover:text-indigo-500 flex items-center gap-1"><Globe size={10}/> Web</a>}
-                                                                        {c.phoneNumber && <span className="flex items-center gap-1"><Phone size={10}/> {c.phoneNumber}</span>}
-                                                                    </div>
-                                                                ) : (
-                                                                    <p className="text-[10px] text-slate-400 mt-0.5">Razón: {c.archivedReason}</p>
-                                                                )}
-                                                            </div>
-                                                        </div>
-                                                        {userRole === 'admin' && !isArchivedCompany && !isArchivedOffice && (
-                                                            <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                                <button onClick={()=>{setForms({...forms, company:c}); setModal({type:'company', parent:o, data:{idx:i}})}} className="text-xs bg-white border px-3 py-1.5 rounded font-bold hover:text-indigo-600 shadow-sm">Editar</button>
-                                                                <button onClick={()=>{setArchiveModal({type:'company', data:{...c, idx:i}, parentId:o.id}); setArchiveReason('')}} className="text-red-400 hover:bg-red-50 p-1.5 rounded"><Trash2 size={14}/></button>
+                                                        )}
+                                                        {userRole === 'admin' && !isArchivedOffice && (
+                                                            <div className="flex gap-2">
+                                                                <button onClick={(e)=>{e.stopPropagation(); setForms({...forms, office:o}); setModal({type:'office', data:o})}} className="text-xs flex gap-1 items-center bg-white border border-slate-200 px-3 py-1.5 rounded font-bold hover:text-indigo-600 hover:border-indigo-200 shadow-sm transition"><Edit size={12}/> Editar Oficina</button>
+                                                                <button onClick={(e)=>{e.stopPropagation(); setArchiveModal({type:'office', data:o}); setArchiveReason('')}} className="text-xs flex gap-1 items-center bg-white border border-slate-200 px-3 py-1.5 rounded font-bold text-slate-500 hover:text-red-500 hover:border-red-200 shadow-sm transition"><Trash2 size={12}/> Dar de Baja</button>
                                                             </div>
                                                         )}
                                                     </div>
-                                                )})}
-                                                {userRole === 'admin' && !isArchivedOffice && (
-                                                    <button onClick={()=>{setForms({...forms, company:{name:'', isLeader:false, interior:'', webUrl:'', domainExpirationDate:'', phoneNumber:'', rfc:'', fiscalAddress:'', proofAddress:'', legalRep:'', contactPerson:'', assignedEmail:'', assignedEmailPassword:'', treasuryEmail:'', treasuryEmailPassword:'', assignmentDate: new Date().toISOString().split('T')[0], observations: '', checklist:{cifUpdated:false, interiorAssigned:false, acrylicSign:false, phoneLine:false, webPage:false, phoneInstalled:false, emailCreated:false}, status: 'active'}}); setModal({type:'company', parent:o, data:null})}} className="w-full py-2.5 border-2 border-dashed border-slate-200 rounded-lg text-sm font-bold text-slate-400 hover:text-indigo-600 hover:border-indigo-300 hover:bg-indigo-50/20 flex items-center justify-center gap-2 transition"><Plus size={16}/> Agregar Empresa</button>
-                                                )}
-                                            </div>
+
+                                                    <div className="p-5 space-y-3">
+                                                        {visibleCompanies.map((c, i) => {
+                                                            const isArchivedCompany = c.status === 'archived';
+                                                            return (
+                                                            <div key={i} className={`flex justify-between items-center border p-3 rounded-lg transition group ${isArchivedCompany ? 'bg-slate-50 border-slate-200 opacity-60' : 'hover:border-indigo-100 hover:bg-indigo-50/30 border-slate-100'}`}>
+                                                                <div className="flex gap-3 items-center">
+                                                                    <div className={`p-2 rounded-lg ${isArchivedCompany ? 'bg-slate-200 text-slate-500' : c.isLeader?'bg-amber-100 text-amber-600':'bg-indigo-100 text-indigo-600'}`}>
+                                                                        {isArchivedCompany ? <Archive size={16}/> : c.isLeader?<Crown size={16}/>:<Building2 size={16}/>}
+                                                                    </div>
+                                                                    <div>
+                                                                        <p className="font-bold text-sm text-slate-700 flex items-center gap-2">
+                                                                            {c.name} 
+                                                                            {c.isLeader && !isArchivedCompany && <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded border border-amber-200">Líder</span>}
+                                                                            {isArchivedCompany && <span className="text-[10px] bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded border">Baja</span>}
+                                                                        </p>
+                                                                        {!isArchivedCompany ? (
+                                                                            <div className="flex gap-2 text-xs text-slate-400 mt-0.5">
+                                                                                {c.webUrl && <a href={c.webUrl} target="_blank" className="hover:text-indigo-500 flex items-center gap-1"><Globe size={10}/> Web</a>}
+                                                                                {c.phoneNumber && <span className="flex items-center gap-1"><Phone size={10}/> {c.phoneNumber}</span>}
+                                                                            </div>
+                                                                        ) : (
+                                                                            <p className="text-[10px] text-slate-400 mt-0.5">Razón: {c.archivedReason}</p>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                                {userRole === 'admin' && !isArchivedCompany && !isArchivedOffice && (
+                                                                    <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                        <button onClick={()=>{setForms({...forms, company:c}); setModal({type:'company', parent:o, data:{idx:i}})}} className="text-xs bg-white border px-3 py-1.5 rounded font-bold hover:text-indigo-600 shadow-sm">Editar</button>
+                                                                        <button onClick={()=>{setArchiveModal({type:'company', data:{...c, idx:i}, parentId:o.id}); setArchiveReason('')}} className="text-red-400 hover:bg-red-50 p-1.5 rounded"><Trash2 size={14}/></button>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        )})}
+                                                        {visibleCompanies.length === 0 && <p className="text-center text-xs text-slate-400 italic py-4">No hay empresas registradas.</p>}
+                                                        {userRole === 'admin' && !isArchivedOffice && (
+                                                            <button onClick={()=>{setForms({...forms, company:{name:'', isLeader:false, interior:'', webUrl:'', domainExpirationDate:'', phoneNumber:'', rfc:'', fiscalAddress:'', proofAddress:'', legalRep:'', contactPerson:'', assignedEmail:'', assignedEmailPassword:'', treasuryEmail:'', treasuryEmailPassword:'', assignmentDate: new Date().toISOString().split('T')[0], observations: '', checklist:{cifUpdated:false, interiorAssigned:false, acrylicSign:false, phoneLine:false, webPage:false, phoneInstalled:false, emailCreated:false}, status: 'active'}}); setModal({type:'company', parent:o, data:null})}} className="w-full py-2.5 border-2 border-dashed border-slate-200 rounded-lg text-sm font-bold text-slate-400 hover:text-indigo-600 hover:border-indigo-300 hover:bg-indigo-50/20 flex items-center justify-center gap-2 transition"><Plus size={16}/> Agregar Empresa</button>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
                                     )})}
                                 </div>
@@ -559,17 +746,26 @@
 
                             {tab === 'tickets' && (
                                 <div className="space-y-4 max-w-4xl mx-auto animate-[fadeIn_0.3s_ease-out]">
-                                    {items.tickets.map(t => (
-                                        <div key={t.id} className="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-col hover:shadow-md transition">
+                                    {items.tickets.map(t => {
+                                        const isResolved = t.status === 'resuelto';
+                                        
+                                        return (
+                                        <div key={t.id} className={`bg-white p-5 rounded-xl shadow-sm border flex flex-col hover:shadow-md transition ${isResolved ? 'border-slate-200 opacity-60 grayscale-[0.5]' : 'border-indigo-100'}`}>
                                             <div className="flex justify-between items-start mb-4">
                                                 <div className="flex gap-4 items-start">
-                                                    <div className={`mt-1 p-2.5 rounded-full shrink-0 ${t.status==='pendiente'?'bg-red-100 text-red-600':t.status==='proceso'?'bg-amber-100 text-amber-600':'bg-emerald-100 text-emerald-600'}`}><LifeBuoy size={20}/></div>
+                                                    <div className={`mt-1 p-2.5 rounded-full shrink-0 ${t.status==='pendiente'?'bg-red-100 text-red-600':t.status==='proceso'?'bg-amber-100 text-amber-600':'bg-emerald-100 text-emerald-600'}`}>
+                                                        {isResolved ? <CheckSquare size={20}/> : <LifeBuoy size={20}/>}
+                                                    </div>
                                                     <div>
                                                         <div className="flex gap-2 items-center mb-1 flex-wrap">
                                                             <span className="font-bold text-slate-800 uppercase text-sm tracking-wide">{t.category}</span>
                                                             <span className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase ${t.priority==='urgente'?'bg-red-500 text-white':'bg-slate-100 text-slate-500'}`}>{t.priority}</span>
                                                             <span className="text-[10px] text-slate-400 bg-slate-50 px-2 py-0.5 rounded border">{t.officeName}</span>
                                                         </div>
+                                                        <p className="text-xs text-slate-500 font-bold mb-1">
+                                                            Empresa: {t.companyName || 'General'} 
+                                                            {t.assignedTo && <span className="ml-2 bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full font-normal">Asignado a: {t.assignedTo}</span>}
+                                                        </p>
                                                         <p className="text-sm text-slate-600 leading-relaxed">{t.description}</p>
                                                     </div>
                                                 </div>
@@ -584,7 +780,7 @@
                                                 <div className="bg-slate-50 rounded-lg p-3 text-xs space-y-2 mb-3 border border-slate-100">
                                                     {t.updates.map((u, idx) => (
                                                         <div key={idx} className="border-l-2 border-indigo-200 pl-2">
-                                                            <p className="font-bold text-slate-500 flex justify-between">{u.author} <span className="font-normal opacity-50">{formatDate(u.date)}</span></p>
+                                                            <p className="font-bold text-slate-500 flex justify-between">{u.author} <span className="font-normal opacity-50">{formatDateTime(u.date)}</span></p>
                                                             <p className="text-slate-700">{u.text}</p>
                                                         </div>
                                                     ))}
@@ -592,23 +788,19 @@
                                             )}
 
                                             <div className="flex justify-between items-center pt-3 border-t border-slate-50">
-                                                <button onClick={()=>{setForms({...forms, ticket: {...t, newUpdate: ''}}); setModal({type:'ticket', data:t})}} className="text-xs bg-indigo-50 text-indigo-600 px-3 py-1.5 rounded font-bold hover:bg-indigo-100">Ver / Responder</button>
-                                                <div className="flex items-center gap-2">
-                                                    <label className="text-[10px] uppercase font-bold text-slate-400">Estado:</label>
-                                                    <select 
-                                                        className="text-xs border border-slate-200 bg-white rounded-lg p-1.5 focus:ring-2 focus:ring-indigo-500 outline-none" 
-                                                        value={t.status} 
-                                                        onChange={async(e)=>await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tickets', t.id), {status: e.target.value})}
-                                                        disabled={userRole !== 'admin'}
-                                                    >
-                                                        <option value="pendiente">Pendiente</option>
-                                                        <option value="proceso">En Proceso</option>
-                                                        <option value="resuelto">Resuelto</option>
-                                                    </select>
-                                                </div>
+                                                <button 
+                                                    onClick={()=>{setForms({...forms, ticket: {...t, newUpdate: ''}}); setModal({type:'ticket', data:t})}} 
+                                                    className={`text-xs px-3 py-1.5 rounded font-bold transition ${isResolved ? 'bg-slate-100 text-slate-500 hover:bg-slate-200' : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'}`}
+                                                >
+                                                    {isResolved ? 'Ver Detalles / Reabrir' : 'Ver / Responder'}
+                                                </button>
+                                                
+                                                <span className={`text-xs font-bold px-2 py-1 rounded uppercase ${t.status==='pendiente'?'bg-red-100 text-red-600':t.status==='proceso'?'bg-amber-100 text-amber-600':'bg-emerald-100 text-emerald-600'}`}>
+                                                    {t.status}
+                                                </span>
                                             </div>
                                         </div>
-                                    ))}
+                                    )})}
                                 </div>
                             )}
                         </div>
@@ -774,20 +966,209 @@
                                     <div className="space-y-4">
                                         {!modal.data && (
                                             <>
-                                                <div className="space-y-1"><label className="text-xs font-bold text-slate-500 uppercase">Oficina Afectada</label><select className="border w-full p-3 rounded-lg bg-slate-50 focus:bg-white outline-none" value={forms.ticket.officeId} onChange={e=>setForms(f=>({...f, ticket:{...f.ticket, officeId:e.target.value}}))}><option value="">Selecciona Oficina...</option>{items.offices.map(o=><option key={o.id} value={o.id}>{o.name}</option>)}</select></div>
-                                                <div className="space-y-1"><label className="text-xs font-bold text-slate-500 uppercase">Descripción</label><textarea className="border w-full p-3 rounded-lg bg-slate-50 focus:bg-white outline-none h-24 resize-none" placeholder="Detalla qué está fallando..." value={forms.ticket.description} onChange={e=>setForms(f=>({...f, ticket:{...f.ticket, description:e.target.value}}))}/></div>
+                                                {/* SELECCION OFICINA */}
+                                                <div className="space-y-1">
+                                                    <label className="text-xs font-bold text-slate-500 uppercase">1. Seleccionar Oficina</label>
+                                                    <select 
+                                                        className="border w-full p-3 rounded-lg bg-slate-50 focus:bg-white outline-none" 
+                                                        value={forms.ticket.officeId} 
+                                                        onChange={e=>setForms(f=>({...f, ticket:{...f.ticket, officeId:e.target.value, companyId: '', isGeneralIssue: false}}))}
+                                                    >
+                                                        <option value="">-- Elegir Oficina --</option>
+                                                        {items.offices.filter(o=>o.status!=='archived').map(o=><option key={o.id} value={o.id}>{o.name}</option>)}
+                                                    </select>
+                                                </div>
+
+                                                {/* ALCANCE Y EMPRESA */}
+                                                {forms.ticket.officeId && (
+                                                    <div className="space-y-3 animate-[fadeIn_0.3s_ease-out]">
+                                                        <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
+                                                            <label className="flex items-center gap-2 text-sm font-medium text-slate-700 cursor-pointer">
+                                                                <input 
+                                                                    type="checkbox" 
+                                                                    className="accent-indigo-600 w-4 h-4" 
+                                                                    checked={forms.ticket.isGeneralIssue} 
+                                                                    onChange={e=>setForms(f=>({...f, ticket:{...f.ticket, isGeneralIssue:e.target.checked, companyId: ''}}))}
+                                                                />
+                                                                Es un problema General de la Oficina (Afecta a todos)
+                                                            </label>
+                                                        </div>
+
+                                                        {!forms.ticket.isGeneralIssue && (
+                                                            <div className="space-y-1">
+                                                                <label className="text-xs font-bold text-slate-500 uppercase">2. Seleccionar Empresa Afectada</label>
+                                                                <select 
+                                                                    className="border w-full p-3 rounded-lg bg-slate-50 focus:bg-white outline-none" 
+                                                                    value={forms.ticket.companyId} 
+                                                                    onChange={e=>setForms(f=>({...f, ticket:{...f.ticket, companyId:e.target.value}}))}
+                                                                >
+                                                                    <option value="">-- Elegir Empresa --</option>
+                                                                    {items.offices.find(o=>o.id===forms.ticket.officeId)?.companies?.filter(c=>c.status!=='archived').map((c, i)=>(
+                                                                        <option key={i} value={i}>{c.name}</option>
+                                                                    ))}
+                                                                </select>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
+
+                                                {/* DETALLES DEL TICKET */}
+                                                {(forms.ticket.isGeneralIssue || forms.ticket.companyId !== '') && (
+                                                    <div className="space-y-3 animate-[fadeIn_0.3s_ease-out]">
+                                                        <div className="grid grid-cols-2 gap-3">
+                                                            <div className="space-y-1">
+                                                                <label className="text-xs font-bold text-slate-500 uppercase">Tipo de Falla</label>
+                                                                <select 
+                                                                    className="border w-full p-3 rounded-lg bg-slate-50 focus:bg-white outline-none" 
+                                                                    value={forms.ticket.category} 
+                                                                    onChange={e=>setForms(f=>({...f, ticket:{...f.ticket, category:e.target.value}}))}
+                                                                >
+                                                                    {ticketCategories.map(cat=><option key={cat} value={cat}>{cat}</option>)}
+                                                                </select>
+                                                            </div>
+                                                            <div className="space-y-1">
+                                                                <label className="text-xs font-bold text-slate-500 uppercase">Prioridad</label>
+                                                                <select 
+                                                                    className="border w-full p-3 rounded-lg bg-slate-50 focus:bg-white outline-none" 
+                                                                    value={forms.ticket.priority} 
+                                                                    onChange={e=>setForms(f=>({...f, ticket:{...f.ticket, priority:e.target.value}}))}
+                                                                >
+                                                                    <option value="baja">Baja</option>
+                                                                    <option value="media">Media</option>
+                                                                    <option value="alta">Alta</option>
+                                                                    <option value="urgente">URGENTE</option>
+                                                                </select>
+                                                            </div>
+                                                        </div>
+                                                        <div className="space-y-1">
+                                                            <label className="text-xs font-bold text-slate-500 uppercase">Asignado A:</label>
+                                                            <div className="relative">
+                                                                <UserCheck size={16} className="absolute left-3 top-3.5 text-slate-400"/>
+                                                                <input 
+                                                                    className="border w-full pl-9 p-3 rounded-lg bg-slate-50 focus:bg-white outline-none" 
+                                                                    placeholder="Nombre del responsable..." 
+                                                                    value={forms.ticket.assignedTo} 
+                                                                    onChange={e=>setForms(f=>({...f, ticket:{...f.ticket, assignedTo:e.target.value}}))}
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                        <div className="space-y-1">
+                                                            <label className="text-xs font-bold text-slate-500 uppercase">Descripción Detallada</label>
+                                                            <textarea 
+                                                                className="border w-full p-3 rounded-lg bg-slate-50 focus:bg-white outline-none h-24 resize-none" 
+                                                                placeholder="Describe el problema con detalle..." 
+                                                                value={forms.ticket.description} 
+                                                                onChange={e=>setForms(f=>({...f, ticket:{...f.ticket, description:e.target.value}}))}
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </>
                                         )}
                                         {modal.data && (
-                                            <div className="space-y-3">
-                                                <div className="bg-slate-50 p-3 rounded border text-sm text-slate-600 italic">"{forms.ticket.description}"</div>
-                                                <div className="space-y-1">
-                                                    <label className="text-xs font-bold text-slate-500 uppercase">Agregar Seguimiento</label>
-                                                    <textarea className="border w-full p-3 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500 outline-none h-20" placeholder="Escribe un avance..." value={forms.ticket.newUpdate} onChange={e=>setForms(f=>({...f, ticket:{...f.ticket, newUpdate:e.target.value}}))}/>
+                                            <div className="space-y-4">
+                                                {/* Estado solo lectura si esta resuelto */}
+                                                {modal.data.status === 'resuelto' ? (
+                                                    <div className="bg-emerald-50 p-4 rounded-lg border border-emerald-200 text-center">
+                                                        <CheckSquare className="w-8 h-8 text-emerald-600 mx-auto mb-2"/>
+                                                        <h4 className="font-bold text-emerald-800">Ticket Resuelto</h4>
+                                                        <p className="text-xs text-emerald-600 mt-1">Este ticket está cerrado y en modo lectura.</p>
+                                                    </div>
+                                                ) : (
+                                                    <div className="grid grid-cols-2 gap-3">
+                                                        <div className="space-y-1">
+                                                            <label className="text-xs font-bold text-slate-500 uppercase">Estado Actual</label>
+                                                            <select 
+                                                                className="border w-full p-2.5 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500 outline-none font-bold" 
+                                                                value={forms.ticket.status} 
+                                                                onChange={e=>setForms(f=>({...f, ticket:{...f.ticket, status:e.target.value}}))}
+                                                            >
+                                                                <option value="pendiente">Pendiente</option>
+                                                                <option value="proceso">En Proceso</option>
+                                                                <option value="resuelto">Resuelto (Cerrar)</option>
+                                                            </select>
+                                                        </div>
+                                                        <div className="space-y-1">
+                                                            <label className="text-xs font-bold text-slate-500 uppercase">Asignado A</label>
+                                                            <input 
+                                                                className="border w-full p-2.5 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500 outline-none" 
+                                                                value={forms.ticket.assignedTo} 
+                                                                onChange={e=>setForms(f=>({...f, ticket:{...f.ticket, assignedTo:e.target.value}}))}
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                <div className="bg-slate-50 p-4 rounded-lg border text-sm text-slate-600 italic">
+                                                    <p className="font-bold text-xs text-slate-400 mb-1">Descripción Original:</p>
+                                                    "{forms.ticket.description}"
                                                 </div>
+
+                                                {/* Historial */}
+                                                {forms.ticket.updates && forms.ticket.updates.length > 0 && (
+                                                    <div className="space-y-2 max-h-40 overflow-y-auto pr-2 custom-scrollbar">
+                                                        {forms.ticket.updates.map((u, i) => (
+                                                            <div key={i} className="text-xs bg-white border p-2 rounded shadow-sm">
+                                                                <div className="flex justify-between text-slate-400 mb-1">
+                                                                    <span className="font-bold">{u.author}</span>
+                                                                    <span>{formatDateTime(u.date)}</span>
+                                                                </div>
+                                                                <p className="text-slate-700">{u.text}</p>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+
+                                                {/* Campo de Nuevo Avance (Solo si no esta resuelto) */}
+                                                {modal.data.status !== 'resuelto' && (
+                                                    <div className="space-y-1">
+                                                        <label className="text-xs font-bold text-slate-500 uppercase flex justify-between">
+                                                            Agregar Avance / Observación
+                                                            {forms.ticket.status !== modal.data.status && <span className="text-red-500 animate-pulse">¡Obligatorio por cambio de estado!</span>}
+                                                        </label>
+                                                        <textarea 
+                                                            className={`border w-full p-3 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500 outline-none h-24 ${forms.ticket.status !== modal.data.status && !forms.ticket.newUpdate ? 'border-red-300 bg-red-50' : ''}`}
+                                                            placeholder={forms.ticket.status !== modal.data.status ? "Escribe el motivo del cambio de estado..." : "Escribe un nuevo comentario..."}
+                                                            value={forms.ticket.newUpdate} 
+                                                            onChange={e=>setForms(f=>({...f, ticket:{...f.ticket, newUpdate:e.target.value}}))}
+                                                        />
+                                                    </div>
+                                                )}
                                             </div>
                                         )}
-                                        <div className="flex justify-end gap-3 pt-4 border-t mt-2"><button onClick={()=>setModal(null)} className="px-5 py-2.5 border border-slate-200 text-slate-600 font-medium rounded-lg hover:bg-slate-50">Cancelar</button><button onClick={saveTicket} className="px-5 py-2.5 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700">{modal.data ? 'Actualizar' : 'Crear Ticket'}</button></div>
+                                        
+                                        <div className="flex justify-end gap-3 pt-4 border-t mt-2">
+                                            <button onClick={()=>setModal(null)} className="px-5 py-2.5 border border-slate-200 text-slate-600 font-medium rounded-lg hover:bg-slate-50">Cerrar</button>
+                                            
+                                            {/* Boton Guardar Normal */}
+                                            {!modal.data && (
+                                                <button 
+                                                    onClick={saveTicket} 
+                                                    className="px-5 py-2.5 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                    disabled={(!forms.ticket.officeId || (!forms.ticket.isGeneralIssue && forms.ticket.companyId === ''))}
+                                                >
+                                                    Crear Ticket
+                                                </button>
+                                            )}
+
+                                            {/* Botones Edicion */}
+                                            {modal.data && modal.data.status !== 'resuelto' && (
+                                                <button onClick={saveTicket} className="px-5 py-2.5 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700">Guardar Cambios</button>
+                                            )}
+
+                                            {/* Boton Reabrir */}
+                                            {modal.data && modal.data.status === 'resuelto' && (
+                                                <div className="flex-1 flex gap-2">
+                                                    <input 
+                                                        className="flex-1 border p-2 rounded text-xs" 
+                                                        placeholder="Motivo para reabrir..." 
+                                                        value={forms.ticket.newUpdate}
+                                                        onChange={e=>setForms(f=>({...f, ticket:{...f.ticket, newUpdate:e.target.value}}))}
+                                                    />
+                                                    <button onClick={handleReopenTicket} className="px-4 py-2 bg-amber-500 text-white rounded-lg font-bold hover:bg-amber-600 text-xs">Reabrir Ticket</button>
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
                                 )}
                             </div>
