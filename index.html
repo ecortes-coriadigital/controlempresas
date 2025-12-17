@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Control - Establecimientos</title>
+    <title>CORIA - AperturaMaster</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
@@ -11,6 +11,11 @@
         .loading-spinner { border: 3px solid #f3f3f3; border-top: 3px solid #4f46e5; border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite; }
         .fade-in { animation: fadeIn 0.3s ease-in; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        /* Scrollbar personalizada */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
     </style>
 
     <script type="importmap">
@@ -26,22 +31,39 @@
     }
     </script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Capturador Global de Errores -->
+    <script>
+        window.onerror = function(msg, url, line, col, error) {
+            if (msg.includes('Script error')) return; // Ignorar errores de cross-origin
+            const root = document.getElementById('root');
+            if(root) {
+                root.innerHTML = `
+                <div style="padding:20px; background:#fee2e2; color:#991b1b; font-family:sans-serif; height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center;">
+                    <h1 style="font-size:24px; font-weight:bold; margin-bottom:10px;">⚠️ Error de Código</h1>
+                    <p>Posible error de sintaxis en la configuración.</p>
+                    <pre style="background:white; padding:15px; border-radius:8px; border:1px solid #f87171; overflow:auto; max-width:90%; text-align:left; font-size:12px;">${msg}\nLínea: ${line}</pre>
+                    <button onclick="window.location.reload()" style="margin-top:20px; padding:10px 20px; background:#dc2626; color:white; border:none; border-radius:6px; cursor:pointer;">Recargar Página</button>
+                </div>`;
+            }
+        };
+    </script>
 </head>
 <body class="bg-slate-100 text-slate-800">
     <div id="root">
         <div class="h-screen flex flex-col items-center justify-center text-slate-400 gap-4">
             <div class="loading-spinner"></div>
-            <p class="text-sm">Iniciando Sistema...</p>
+            <p class="text-sm">Cargando CORIA System...</p>
         </div>
     </div>
 
     <script type="text/babel" data-type="module">
-        import React, { useState, useEffect } from 'react';
+        import React, { useState, useEffect, useMemo, Component } from 'react';
         import ReactDOM from 'react-dom/client';
         import { initializeApp, getApps, getApp } from 'firebase/app';
         import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
         import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, serverTimestamp } from 'firebase/firestore';
-        import { LayoutDashboard, Building2, Building, LifeBuoy, Plus, Edit, Trash2, Settings, ShieldAlert, LogOut, User, Lock, Mail, Info, Database } from 'lucide-react';
+        import { LayoutDashboard, Building2, Building, LifeBuoy, Plus, Edit, Trash2, Settings, ShieldAlert, LogOut, User, Lock, Mail, Info, Database, Menu, X, Crown, AlertTriangle, Download, History, MapPin, CheckSquare, Globe, Phone } from 'lucide-react';
 
         // ------------------------------------------------------------------
         // ---  ¡ATENCIÓN! PEGA AQUÍ TUS DATOS DE FIREBASE (Project Settings) ---
@@ -62,40 +84,51 @@
 
         // Inicialización Segura
         try {
-            // Verificamos si el usuario ya puso sus datos
-            if (firebaseConfig.apiKey === "TU_API_KEY_AQUI") {
-                console.warn("Faltan los datos de configuración en el código.");
-            } else {
+            if (firebaseConfig.apiKey !== "TU_API_KEY_AQUI") {
                 app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
                 auth = getAuth(app);
                 db = getFirestore(app);
             }
         } catch (e) {
             console.error("Error inicializando Firebase:", e);
+            throw new Error("Error en la configuración de Firebase: " + e.message);
         }
 
-        // --- MANEJO DE ERRORES VISUALES ---
-        const getFriendlyError = (code) => {
-            const c = code?.toString() || '';
-            if (c.includes('auth/invalid-credential') || c.includes('auth/wrong-password')) return { msg: "Credenciales incorrectas.", hint: "Verifica correo y contraseña." };
-            if (c.includes('auth/user-not-found')) return { msg: "Usuario no encontrado.", hint: "Crea el usuario en Firebase Console." };
-            if (c.includes('permission-denied')) return { msg: "Acceso denegado.", hint: "No tienes permisos para ver esto." };
-            return { msg: "Error de sistema.", hint: c };
+        // --- UTILS ---
+        const formatDate = (dateString) => {
+            if (!dateString) return '-';
+            const date = new Date(dateString);
+            if(isNaN(date.getTime())) return '-';
+            const userTimezoneOffset = date.getTimezoneOffset() * 60000;
+            return new Date(date.getTime() + userTimezoneOffset).toLocaleDateString('es-MX', { year: 'numeric', month: 'short', day: 'numeric' });
         };
 
-        // --- PANTALLA: FALTA CONFIGURACIÓN ---
+        const formatDateTime = (timestamp) => {
+            if (!timestamp) return '-';
+            const date = timestamp.seconds ? new Date(timestamp.seconds * 1000) : new Date(timestamp);
+            if(isNaN(date.getTime())) return '-';
+            return date.toLocaleDateString('es-MX', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+        };
+
+        const getDaysDiff = (dateString) => {
+            if (!dateString) return null;
+            return Math.ceil((new Date(dateString) - new Date()) / (1000 * 60 * 60 * 24)); 
+        };
+
+        // --- COMPONENTES ---
+
+        // Pantalla de Configuración Requerida
         function SetupRequiredScreen() {
             return (
                 <div className="min-h-screen flex items-center justify-center bg-slate-100 p-4">
                     <div className="bg-white p-8 rounded-xl shadow-xl max-w-lg w-full text-center border-l-4 border-amber-500">
                         <Database className="w-16 h-16 text-amber-500 mx-auto mb-4"/>
                         <h1 className="text-2xl font-bold text-slate-800 mb-2">Falta Conexión a Base de Datos</h1>
-                        <p className="text-slate-600 mb-6">Para que el sistema funcione, necesitas editar el archivo <code>index.html</code> y pegar tus datos de Firebase en las líneas 57-64.</p>
+                        <p className="text-slate-600 mb-6">Para restaurar todas las funciones, edita el archivo <code>index.html</code> y pega tus datos de Firebase en las líneas 68-75.</p>
                         <div className="bg-slate-900 text-slate-300 p-4 rounded-lg text-left text-xs font-mono overflow-x-auto mb-6">
-                            <p className="text-green-400">// Busca esta parte en el código y edítala:</p>
+                            <p className="text-green-400">// Configura tus credenciales aquí:</p>
                             <p>const firebaseConfig = &#123;</p>
-                            <p>&nbsp;&nbsp;apiKey: "PEGA_TU_API_KEY_AQUI",</p>
-                            <p>&nbsp;&nbsp;authDomain: "PEGA_TU_DOMAIN_AQUI",</p>
+                            <p>&nbsp;&nbsp;apiKey: "...",</p>
                             <p>&nbsp;&nbsp;...</p>
                             <p>&#125;;</p>
                         </div>
@@ -105,7 +138,7 @@
             );
         }
 
-        // --- PANTALLA: LOGIN ---
+        // Pantalla Login
         function LoginScreen() {
             const [email, setEmail] = useState('');
             const [password, setPassword] = useState('');
@@ -119,7 +152,9 @@
                 try {
                     await signInWithEmailAndPassword(auth, email, password);
                 } catch (err) {
-                    setError(getFriendlyError(err.code));
+                    let msg = "Error al entrar.";
+                    if(err.code?.includes('invalid-credential') || err.code?.includes('wrong-password')) msg = "Credenciales incorrectas.";
+                    setError(msg);
                     setLoading(false);
                 }
             };
@@ -131,29 +166,14 @@
                             <div className="bg-indigo-600 w-16 h-16 rounded-xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-indigo-500/30">
                                 <Building2 className="text-white w-8 h-8" />
                             </div>
-                            <h1 className="text-2xl font-bold text-slate-800">Bienvenido</h1>
-                            <p className="text-slate-500 text-sm mt-1">Gestión de Aperturas</p>
+                            <h1 className="text-2xl font-bold text-slate-800">CORIA System</h1>
+                            <p className="text-slate-500 text-sm mt-1">Gestión Integral de Aperturas</p>
                         </div>
-                        
-                        {error && (
-                            <div className="bg-red-50 text-red-600 p-3 rounded-lg mb-6 text-sm flex flex-col gap-1 border border-red-100">
-                                <span className="font-bold flex gap-2 items-center"><ShieldAlert size={14}/> {error.msg}</span>
-                                <span className="text-xs ml-6">{error.hint}</span>
-                            </div>
-                        )}
-
+                        {error && <div className="bg-red-50 text-red-600 p-3 rounded-lg mb-6 text-sm flex gap-2 items-center border border-red-100"><ShieldAlert size={16}/> {error}</div>}
                         <form onSubmit={handleLogin} className="space-y-4">
-                            <div className="relative">
-                                <Mail className="absolute left-3 top-3 text-slate-400" size={18} />
-                                <input type="email" required className="w-full pl-10 pr-4 py-3 bg-slate-50 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="correo@excel.com" value={email} onChange={e=>setEmail(e.target.value)}/>
-                            </div>
-                            <div className="relative">
-                                <Lock className="absolute left-3 top-3 text-slate-400" size={18} />
-                                <input type="password" required className="w-full pl-10 pr-4 py-3 bg-slate-50 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="Contraseña" value={password} onChange={e=>setPassword(e.target.value)}/>
-                            </div>
-                            <button disabled={loading} className="w-full bg-indigo-600 text-white font-bold py-3 rounded-lg hover:bg-indigo-700 transition disabled:opacity-50">
-                                {loading ? 'Entrando...' : 'Iniciar Sesión'}
-                            </button>
+                            <div className="relative"><Mail className="absolute left-3 top-3 text-slate-400" size={18} /><input type="email" required className="w-full pl-10 pr-4 py-3 bg-slate-50 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="correo@coria.com" value={email} onChange={e=>setEmail(e.target.value)}/></div>
+                            <div className="relative"><Lock className="absolute left-3 top-3 text-slate-400" size={18} /><input type="password" required className="w-full pl-10 pr-4 py-3 bg-slate-50 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="Contraseña" value={password} onChange={e=>setPassword(e.target.value)}/></div>
+                            <button disabled={loading} className="w-full bg-indigo-600 text-white font-bold py-3 rounded-lg hover:bg-indigo-700 transition disabled:opacity-50">{loading ? 'Validando...' : 'Iniciar Sesión'}</button>
                         </form>
                     </div>
                 </div>
@@ -162,41 +182,64 @@
 
         // --- APP PRINCIPAL ---
         function App() {
-            // 1. Verificar si hay config
             if (!app) return <SetupRequiredScreen />;
 
             const [user, setUser] = useState(null);
             const [userRole, setUserRole] = useState(null);
             const [loadingAuth, setLoadingAuth] = useState(true);
             const [tab, setTab] = useState('dashboard');
+            const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
             
             // Datos
             const [items, setItems] = useState({ offices: [], tickets: [] });
             
             // Modales
             const [modal, setModal] = useState(null);
+            
+            // Estado de Formularios (RESTAURADO COMPLETO)
             const [forms, setForms] = useState({ 
-                office: { name: '', address: '', companies: [] },
-                company: { name: '', webUrl: '' },
-                ticket: { officeId: '', category: 'internet', priority: 'media', description: '', status: 'pendiente' }
+                office: { 
+                    name: '', address: '', contractEndDate: '', landlordName: '', notes: '', companies: [] 
+                },
+                company: { 
+                    name: '', isLeader: false, interior: '', webUrl: '', phoneNumber: '',
+                    assignmentDate: new Date().toISOString().split('T')[0], 
+                    checklist: { 
+                        telmexProof: false, fiscalAddressEmail: false, interiorAssigned: false, 
+                        emailCreated: false, webCreated: false, phoneInstalled: false 
+                    }
+                },
+                ticket: { 
+                    officeId: '', category: 'internet', priority: 'media', description: '', status: 'pendiente',
+                    updates: [], newUpdate: '' 
+                }
             });
 
-            // Auth Listener
+            // Alertas (RESTAURADO)
+            const alerts = useMemo(() => {
+                const list = [];
+                items.offices.forEach(o => {
+                    if(o.contractEndDate && getDaysDiff(o.contractEndDate) <= 90) 
+                        list.push({type:'contract', priority:1, title:`Contrato: ${o.name}`, msg:`Vence el ${formatDate(o.contractEndDate)}`, officeId:o.id});
+                });
+                return list.sort((a,b)=>a.priority-b.priority);
+            }, [items.offices]);
+
             useEffect(() => {
-                return onAuthStateChanged(auth, u => {
+                const unsub = onAuthStateChanged(auth, u => {
                     setUser(u);
                     if (u) setUserRole(u.email?.toLowerCase().includes('admin') ? 'admin' : 'consultor');
                     setLoadingAuth(false);
                 });
+                return () => unsub();
             }, []);
 
-            // Data Sync
             useEffect(() => {
                 if(!user) return;
                 const unsub1 = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'offices'), 
                     s => setItems(p => ({...p, offices: s.docs.map(d=>({id:d.id, ...d.data()}))})), e => console.error(e));
                 const unsub2 = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'tickets'), 
-                    s => setItems(p => ({...p, tickets: s.docs.map(d=>({id:d.id, ...d.data()}))})), e => console.error(e));
+                    s => setItems(p => ({...p, tickets: s.docs.map(d=>({id:d.id, ...d.data()})).sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0))})), e => console.error(e));
                 return () => { unsub1(); unsub2(); };
             }, [user]);
 
@@ -207,75 +250,126 @@
                 else await addDoc(ref, {...forms.office, companies:[], createdAt: serverTimestamp()});
                 setModal(null);
             };
+
             const saveCompany = async () => {
                 const ref = doc(db, 'artifacts', appId, 'public', 'data', 'offices', modal.parent.id);
-                const list = [...(modal.parent.companies || [])];
+                let list = [...(modal.parent.companies || [])];
+                
+                // Si es lider, quitamos lider a los demas
+                if(forms.company.isLeader) list = list.map(c=>({...c, isLeader:false}));
+
                 if(modal.data) list[modal.data.idx] = forms.company;
                 else list.push(forms.company);
+                
                 await updateDoc(ref, {companies: list});
                 setModal(null);
             };
+
             const saveTicket = async () => {
                 const ref = collection(db, 'artifacts', appId, 'public', 'data', 'tickets');
                 const office = items.offices.find(o => o.id === forms.ticket.officeId);
-                const data = { ...forms.ticket, officeName: office?.name || '?', createdAt: serverTimestamp() };
-                if(modal.data) await updateDoc(doc(ref, modal.data.id), forms.ticket);
-                else await addDoc(ref, data);
+                
+                let data = { ...forms.ticket };
+                if(modal.data) {
+                    // Si es edicion (agregar update)
+                    if(data.newUpdate) {
+                        data.updates = [...(data.updates||[]), {text: data.newUpdate, date: new Date().toISOString(), author: user.email}];
+                        delete data.newUpdate;
+                    }
+                    await updateDoc(doc(ref, modal.data.id), data);
+                } else {
+                    // Si es nuevo
+                    data.officeName = office?.name || '?';
+                    data.createdAt = serverTimestamp();
+                    delete data.newUpdate;
+                    await addDoc(ref, data);
+                }
                 setModal(null);
             };
-            const deleteItem = async (col, id) => { if(confirm("¿Eliminar?")) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', col, id)); };
+
+            const deleteItem = async (col, id) => { if(confirm("¿Seguro de eliminar?")) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', col, id)); };
+
+            const exportExcel = () => {
+                let csv = "ID,Oficina,Direccion,Vencimiento,Empresa,Lider,Interior,Telefono,Web\n";
+                items.offices.forEach(o => {
+                    const comps = o.companies || [];
+                    if(!comps.length) csv += `"${o.id}","${o.name}","${o.address}","${formatDate(o.contractEndDate)}",,,,\n`;
+                    else comps.forEach(c => csv += `"${o.id}","${o.name}","${o.address}","${formatDate(o.contractEndDate)}","${c.name}","${c.isLeader?'SI':'NO'}","${c.interior}","${c.phoneNumber}","${c.webUrl}"\n`);
+                });
+                const link = document.createElement("a");
+                link.href = URL.createObjectURL(new Blob([`\uFEFF${csv}`], {type:'text/csv'}));
+                link.download = "Reporte_CORIA.csv";
+                link.click();
+            };
 
             if(loadingAuth) return <div className="h-screen flex items-center justify-center"><div className="loading-spinner"></div></div>;
             if(!user) return <LoginScreen />;
 
             return (
                 <div className="flex h-screen overflow-hidden bg-slate-50">
-                    <aside className="w-64 bg-slate-900 text-white flex flex-col hidden md:flex shrink-0">
-                        <div className="p-6 border-b border-slate-800 flex items-center gap-3">
-                            <div className="bg-indigo-600 p-2 rounded-lg"><Building2 size={20}/></div>
-                            <div><h1 className="font-bold tracking-wider">CORIA</h1><p className="text-[10px] text-indigo-400 uppercase tracking-widest">Aperturas</p></div>
+                    {/* MOBILE OVERLAY */}
+                    {mobileMenuOpen && <div className="fixed inset-0 bg-black/50 z-20 md:hidden" onClick={()=>setMobileMenuOpen(false)}></div>}
+
+                    {/* SIDEBAR */}
+                    <aside className={`fixed inset-y-0 left-0 z-30 w-64 bg-slate-900 text-white flex flex-col transition-transform duration-300 md:relative md:translate-x-0 ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+                        <div className="p-6 border-b border-slate-800 flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <div className="bg-indigo-600 p-2 rounded-lg"><Building2 size={20}/></div>
+                                <div><h1 className="font-bold tracking-wider">CORIA</h1><p className="text-[10px] text-indigo-400 uppercase tracking-widest">Aperturas</p></div>
+                            </div>
+                            <button onClick={()=>setMobileMenuOpen(false)} className="md:hidden text-slate-400"><X size={20}/></button>
                         </div>
                         <div className="px-6 py-4 border-b border-slate-800/50">
                             <div className="flex items-center gap-3 mb-1"><div className="bg-slate-700 p-1.5 rounded-full"><User size={14}/></div><p className="text-xs font-medium truncate w-32" title={user.email}>{user.email}</p></div>
-                            <span className={`text-[10px] px-2 py-0.5 rounded-full uppercase font-bold tracking-wide ${userRole==='admin' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-blue-500/20 text-blue-400'}`}>{userRole === 'admin' ? 'Administrador' : 'Consultor'}</span>
+                            <span className={`text-[10px] px-2 py-0.5 rounded-full uppercase font-bold tracking-wide ${userRole==='admin' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-blue-500/20 text-blue-400'}`}>{userRole === 'admin' ? 'Administrador' : 'Modo Lectura'}</span>
                         </div>
                         <nav className="p-4 space-y-1 flex-1">
-                            <button onClick={()=>setTab('dashboard')} className={`w-full flex gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${tab==='dashboard'?'bg-indigo-600 text-white':'text-slate-400 hover:bg-slate-800 hover:text-white'}`}><LayoutDashboard size={18}/> Tablero</button>
-                            <button onClick={()=>setTab('offices')} className={`w-full flex gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${tab==='offices'?'bg-indigo-600 text-white':'text-slate-400 hover:bg-slate-800 hover:text-white'}`}><Building size={18}/> Oficinas</button>
-                            <button onClick={()=>setTab('tickets')} className={`w-full flex gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${tab==='tickets'?'bg-indigo-600 text-white':'text-slate-400 hover:bg-slate-800 hover:text-white'}`}><LifeBuoy size={18}/> Tickets</button>
+                            <button onClick={()=>{setTab('dashboard');setMobileMenuOpen(false)}} className={`w-full flex gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${tab==='dashboard'?'bg-indigo-600 text-white':'text-slate-400 hover:bg-slate-800 hover:text-white'}`}><LayoutDashboard size={18}/> Tablero</button>
+                            <button onClick={()=>{setTab('offices');setMobileMenuOpen(false)}} className={`w-full flex gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${tab==='offices'?'bg-indigo-600 text-white':'text-slate-400 hover:bg-slate-800 hover:text-white'}`}><Building size={18}/> Oficinas</button>
+                            <button onClick={()=>{setTab('tickets');setMobileMenuOpen(false)}} className={`w-full flex gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${tab==='tickets'?'bg-indigo-600 text-white':'text-slate-400 hover:bg-slate-800 hover:text-white'}`}><LifeBuoy size={18}/> Tickets</button>
                         </nav>
                         <div className="p-4 border-t border-slate-800"><button onClick={()=>signOut(auth)} className="flex items-center gap-2 text-xs text-red-400 hover:text-red-300 w-full p-2 rounded"><LogOut size={14}/> Cerrar Sesión</button></div>
                     </aside>
 
-                    <main className="flex-1 flex flex-col h-full overflow-hidden relative">
-                        <header className="bg-white px-8 py-4 border-b flex justify-between items-center shadow-sm z-10">
-                            <div><h2 className="text-xl font-bold capitalize text-slate-800">{tab === 'tickets' ? 'Mesa de Ayuda' : tab}</h2><p className="text-xs text-slate-400 mt-1">Gestión operativa</p></div>
-                            {userRole === 'admin' && (
-                                <div className="flex gap-2">
-                                    {tab === 'offices' && <button onClick={()=>{setForms({...forms, office: {name:'', address:'', companies:[]}}); setModal({type:'office', data:null})}} className="bg-indigo-600 text-white px-4 py-2 rounded-lg flex gap-2 items-center text-sm font-bold hover:bg-indigo-700 transition"><Plus size={16}/> Nueva Oficina</button>}
-                                    {tab === 'tickets' && <button onClick={()=>{setForms({...forms, ticket: {officeId:'', category:'internet', priority:'media', description:'', status:'pendiente'}}); setModal({type:'ticket', data:null})}} className="bg-indigo-600 text-white px-4 py-2 rounded-lg flex gap-2 items-center text-sm font-bold hover:bg-indigo-700 transition"><Plus size={16}/> Nuevo Ticket</button>}
-                                </div>
-                            )}
+                    <main className="flex-1 flex flex-col h-full overflow-hidden relative w-full">
+                        <header className="bg-white px-4 md:px-8 py-4 border-b flex justify-between items-center shadow-sm z-10 shrink-0">
+                            <div className="flex items-center gap-3">
+                                <button onClick={()=>setMobileMenuOpen(true)} className="md:hidden text-slate-500 p-1"><Menu size={24}/></button>
+                                <div><h2 className="text-xl font-bold capitalize text-slate-800">{tab === 'tickets' ? 'Mesa de Ayuda' : tab}</h2><p className="text-xs text-slate-400 mt-1 hidden md:block">Gestión operativa</p></div>
+                            </div>
+                            <div className="flex gap-2">
+                                <button onClick={exportExcel} className="hidden md:flex bg-emerald-600 text-white px-3 py-2 rounded-lg gap-2 items-center text-xs font-bold hover:bg-emerald-700 transition"><Download size={16}/> Reporte</button>
+                                {userRole === 'admin' && (
+                                    <>
+                                        {tab === 'offices' && <button onClick={()=>{setForms({...forms, office: {name:'', address:'', contractEndDate:'', landlordName:'', notes:'', companies:[]}}); setModal({type:'office', data:null})}} className="bg-indigo-600 text-white px-3 py-2 rounded-lg flex gap-2 items-center text-xs md:text-sm font-bold hover:bg-indigo-700 transition"><Plus size={16}/><span className="hidden md:inline">Nueva Oficina</span></button>}
+                                        {tab === 'tickets' && <button onClick={()=>{setForms({...forms, ticket: {officeId:'', category:'internet', priority:'media', description:'', status:'pendiente', updates:[], newUpdate:''}}); setModal({type:'ticket', data:null})}} className="bg-indigo-600 text-white px-3 py-2 rounded-lg flex gap-2 items-center text-xs md:text-sm font-bold hover:bg-indigo-700 transition"><Plus size={16}/><span className="hidden md:inline">Nuevo Ticket</span></button>}
+                                    </>
+                                )}
+                            </div>
                         </header>
 
-                        <div className="flex-1 overflow-auto p-8">
+                        <div className="flex-1 overflow-auto p-4 md:p-8">
                             {tab === 'dashboard' && (
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-6xl mx-auto animate-[fadeIn_0.3s_ease-out]">
-                                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col items-center text-center hover:shadow-md transition">
-                                        <div className="p-3 bg-blue-50 text-blue-600 rounded-full mb-3"><Building size={24}/></div>
-                                        <h3 className="text-slate-500 text-xs font-bold uppercase tracking-wider">Oficinas</h3>
-                                        <p className="text-4xl font-bold text-slate-800 mt-2">{items.offices.length}</p>
+                                <div className="max-w-6xl mx-auto space-y-6 animate-[fadeIn_0.3s_ease-out]">
+                                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 text-center"><h3 className="text-slate-500 text-xs font-bold uppercase">Oficinas</h3><p className="text-3xl font-bold text-slate-800 mt-2">{items.offices.length}</p></div>
+                                        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 text-center"><h3 className="text-slate-500 text-xs font-bold uppercase">Empresas</h3><p className="text-3xl font-bold text-slate-800 mt-2">{items.offices.reduce((a,b)=>a+(b.companies?.length||0),0)}</p></div>
+                                        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 text-center"><h3 className="text-slate-500 text-xs font-bold uppercase">Tickets</h3><p className="text-3xl font-bold text-slate-800 mt-2">{items.tickets.filter(t=>t.status!=='resuelto').length}</p></div>
+                                        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 text-center"><h3 className="text-slate-500 text-xs font-bold uppercase">Alertas</h3><p className="text-3xl font-bold text-amber-500 mt-2">{alerts.length}</p></div>
                                     </div>
-                                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col items-center text-center hover:shadow-md transition">
-                                        <div className="p-3 bg-emerald-50 text-emerald-600 rounded-full mb-3"><Building2 size={24}/></div>
-                                        <h3 className="text-slate-500 text-xs font-bold uppercase tracking-wider">Empresas</h3>
-                                        <p className="text-4xl font-bold text-slate-800 mt-2">{items.offices.reduce((a,b)=>a+(b.companies?.length||0),0)}</p>
-                                    </div>
-                                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col items-center text-center hover:shadow-md transition">
-                                        <div className="p-3 bg-amber-50 text-amber-600 rounded-full mb-3"><LifeBuoy size={24}/></div>
-                                        <h3 className="text-slate-500 text-xs font-bold uppercase tracking-wider">Tickets Activos</h3>
-                                        <p className="text-4xl font-bold text-slate-800 mt-2">{items.tickets.filter(t=>t.status!=='resuelto').length}</p>
-                                    </div>
+
+                                    {alerts.length > 0 && (
+                                        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                                            <div className="bg-amber-50 p-4 border-b border-amber-100 flex gap-2 items-center font-bold text-amber-800"><AlertTriangle size={18}/> Alertas de Vencimiento</div>
+                                            <div className="divide-y divide-slate-100">
+                                                {alerts.map((a,i) => (
+                                                    <div key={i} className="p-4 flex justify-between items-center hover:bg-slate-50">
+                                                        <div><p className="font-bold text-sm text-slate-700">{a.title}</p><p className="text-xs text-slate-500">{a.msg}</p></div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             )}
 
@@ -283,8 +377,12 @@
                                 <div className="grid gap-6 max-w-5xl mx-auto animate-[fadeIn_0.3s_ease-out]">
                                     {items.offices.map(o => (
                                         <div key={o.id} className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition">
-                                            <div className="p-5 border-b bg-slate-50/50 flex justify-between items-center">
-                                                <div><h3 className="font-bold text-lg text-slate-800">{o.name}</h3><p className="text-xs text-slate-500 mt-0.5">{o.address}</p></div>
+                                            <div className="p-5 border-b bg-slate-50/50 flex justify-between items-start">
+                                                <div>
+                                                    <h3 className="font-bold text-lg text-slate-800">{o.name}</h3>
+                                                    <p className="text-xs text-slate-500 flex items-center gap-1"><MapPin size={12}/> {o.address}</p>
+                                                    {o.contractEndDate && <p className="text-[10px] text-slate-400 mt-1">Vence contrato: {formatDate(o.contractEndDate)}</p>}
+                                                </div>
                                                 {userRole === 'admin' && (
                                                     <div className="flex gap-2">
                                                         <button onClick={()=>{setForms({...forms, office:o}); setModal({type:'office', data:o})}} className="p-2 hover:bg-white hover:shadow-sm rounded-lg text-slate-400 hover:text-indigo-600 transition"><Edit size={16}/></button>
@@ -296,8 +394,14 @@
                                                 {(o.companies||[]).map((c, i) => (
                                                     <div key={i} className="flex justify-between items-center border border-slate-100 p-3 rounded-lg hover:border-indigo-100 hover:bg-indigo-50/30 transition group">
                                                         <div className="flex gap-3 items-center">
-                                                            <div className="bg-indigo-100 p-2 rounded-lg text-indigo-600"><Building2 size={16}/></div>
-                                                            <div><p className="font-bold text-sm text-slate-700">{c.name}</p><a href={c.webUrl} target="_blank" className="text-xs text-slate-400 hover:text-indigo-500">{c.webUrl||'Sin web'}</a></div>
+                                                            <div className={`p-2 rounded-lg ${c.isLeader?'bg-amber-100 text-amber-600':'bg-indigo-100 text-indigo-600'}`}>{c.isLeader?<Crown size={16}/>:<Building2 size={16}/>}</div>
+                                                            <div>
+                                                                <p className="font-bold text-sm text-slate-700 flex items-center gap-2">{c.name} {c.isLeader && <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded border border-amber-200">Líder</span>}</p>
+                                                                <div className="flex gap-2 text-xs text-slate-400 mt-0.5">
+                                                                    {c.webUrl && <a href={c.webUrl} target="_blank" className="hover:text-indigo-500 flex items-center gap-1"><Globe size={10}/> Web</a>}
+                                                                    {c.phoneNumber && <span className="flex items-center gap-1"><Phone size={10}/> {c.phoneNumber}</span>}
+                                                                </div>
+                                                            </div>
                                                         </div>
                                                         {userRole === 'admin' && (
                                                             <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -307,7 +411,7 @@
                                                         )}
                                                     </div>
                                                 ))}
-                                                {userRole === 'admin' && <button onClick={()=>{setForms({...forms, company:{name:'', webUrl:''}}); setModal({type:'company', parent:o, data:null})}} className="w-full py-2.5 border-2 border-dashed border-slate-200 rounded-lg text-sm font-bold text-slate-400 hover:text-indigo-600 hover:border-indigo-300 hover:bg-indigo-50/20 flex items-center justify-center gap-2 transition"><Plus size={16}/> Agregar Empresa</button>}
+                                                {userRole === 'admin' && <button onClick={()=>{setForms({...forms, company:{name:'', isLeader:false, interior:'', webUrl:'', phoneNumber:'', assignmentDate: new Date().toISOString().split('T')[0], checklist:{telmexProof:false, fiscalAddressEmail:false, interiorAssigned:false, emailCreated:false, webCreated:false, phoneInstalled:false}}}); setModal({type:'company', parent:o, data:null})}} className="w-full py-2.5 border-2 border-dashed border-slate-200 rounded-lg text-sm font-bold text-slate-400 hover:text-indigo-600 hover:border-indigo-300 hover:bg-indigo-50/20 flex items-center justify-center gap-2 transition"><Plus size={16}/> Agregar Empresa</button>}
                                             </div>
                                         </div>
                                     ))}
@@ -317,26 +421,52 @@
                             {tab === 'tickets' && (
                                 <div className="space-y-4 max-w-4xl mx-auto animate-[fadeIn_0.3s_ease-out]">
                                     {items.tickets.map(t => (
-                                        <div key={t.id} className="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-col md:flex-row gap-4 md:items-center justify-between hover:shadow-md transition">
-                                            <div className="flex gap-4 items-start">
-                                                <div className={`mt-1 p-2.5 rounded-full shrink-0 ${t.status==='pendiente'?'bg-red-100 text-red-600':t.status==='proceso'?'bg-amber-100 text-amber-600':'bg-emerald-100 text-emerald-600'}`}><LifeBuoy size={20}/></div>
-                                                <div>
-                                                    <div className="flex gap-2 items-center mb-1 flex-wrap">
-                                                        <span className="font-bold text-slate-800 uppercase text-sm tracking-wide">{t.category}</span>
-                                                        <span className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase ${t.priority==='urgente'?'bg-red-500 text-white':'bg-slate-100 text-slate-500'}`}>{t.priority}</span>
-                                                        <span className="text-[10px] text-slate-400 bg-slate-50 px-2 py-0.5 rounded border">{t.officeName}</span>
+                                        <div key={t.id} className="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-col hover:shadow-md transition">
+                                            <div className="flex justify-between items-start mb-4">
+                                                <div className="flex gap-4 items-start">
+                                                    <div className={`mt-1 p-2.5 rounded-full shrink-0 ${t.status==='pendiente'?'bg-red-100 text-red-600':t.status==='proceso'?'bg-amber-100 text-amber-600':'bg-emerald-100 text-emerald-600'}`}><LifeBuoy size={20}/></div>
+                                                    <div>
+                                                        <div className="flex gap-2 items-center mb-1 flex-wrap">
+                                                            <span className="font-bold text-slate-800 uppercase text-sm tracking-wide">{t.category}</span>
+                                                            <span className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase ${t.priority==='urgente'?'bg-red-500 text-white':'bg-slate-100 text-slate-500'}`}>{t.priority}</span>
+                                                            <span className="text-[10px] text-slate-400 bg-slate-50 px-2 py-0.5 rounded border">{t.officeName}</span>
+                                                        </div>
+                                                        <p className="text-sm text-slate-600 leading-relaxed">{t.description}</p>
                                                     </div>
-                                                    <p className="text-sm text-slate-600 leading-relaxed">{t.description}</p>
+                                                </div>
+                                                <div className="flex flex-col items-end gap-2">
+                                                    <p className="text-[10px] text-slate-300">{formatDateTime(t.createdAt)}</p>
+                                                    {userRole === 'admin' && <button onClick={()=>deleteItem('tickets', t.id)} className="text-slate-300 hover:text-red-500"><Trash2 size={16}/></button>}
                                                 </div>
                                             </div>
-                                            <div className="flex gap-3 items-center md:border-l md:pl-4 border-slate-100">
-                                                <div className="flex flex-col gap-1 w-full md:w-auto">
-                                                    <label className="text-[10px] font-bold text-slate-400 uppercase">Estado</label>
-                                                    <select className="text-xs border border-slate-200 bg-slate-50 rounded-lg p-2 focus:ring-2 focus:ring-indigo-500 outline-none" value={t.status} onChange={async(e)=>await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tickets', t.id), {status: e.target.value})} disabled={userRole !== 'admin'}>
-                                                        <option value="pendiente">Pendiente</option><option value="proceso">En Proceso</option><option value="resuelto">Resuelto</option>
+
+                                            {/* Historial de Ticket */}
+                                            {t.updates && t.updates.length > 0 && (
+                                                <div className="bg-slate-50 rounded-lg p-3 text-xs space-y-2 mb-3 border border-slate-100">
+                                                    {t.updates.map((u, idx) => (
+                                                        <div key={idx} className="border-l-2 border-indigo-200 pl-2">
+                                                            <p className="font-bold text-slate-500 flex justify-between">{u.author} <span className="font-normal opacity-50">{formatDate(u.date)}</span></p>
+                                                            <p className="text-slate-700">{u.text}</p>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+
+                                            <div className="flex justify-between items-center pt-3 border-t border-slate-50">
+                                                <button onClick={()=>{setForms({...forms, ticket: {...t, newUpdate: ''}}); setModal({type:'ticket', data:t})}} className="text-xs bg-indigo-50 text-indigo-600 px-3 py-1.5 rounded font-bold hover:bg-indigo-100">Ver / Responder</button>
+                                                <div className="flex items-center gap-2">
+                                                    <label className="text-[10px] uppercase font-bold text-slate-400">Estado:</label>
+                                                    <select 
+                                                        className="text-xs border border-slate-200 bg-white rounded-lg p-1.5 focus:ring-2 focus:ring-indigo-500 outline-none" 
+                                                        value={t.status} 
+                                                        onChange={async(e)=>await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tickets', t.id), {status: e.target.value})}
+                                                        disabled={userRole !== 'admin'}
+                                                    >
+                                                        <option value="pendiente">Pendiente</option>
+                                                        <option value="proceso">En Proceso</option>
+                                                        <option value="resuelto">Resuelto</option>
                                                     </select>
                                                 </div>
-                                                {userRole === 'admin' && <button onClick={()=>deleteItem('tickets', t.id)} className="text-slate-300 hover:text-red-500 p-2 rounded-lg hover:bg-red-50 transition"><Trash2 size={18}/></button>}
                                             </div>
                                         </div>
                                     ))}
@@ -345,35 +475,76 @@
                         </div>
                     </main>
 
+                    {/* MODALES GENERIGOS RESTAURADOS */}
                     {modal && (
                         <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-50 backdrop-blur-sm fade-in">
-                            <div className="bg-white p-6 rounded-2xl w-full max-w-md shadow-2xl scale-100 transition-all">
+                            <div className="bg-white p-6 rounded-2xl w-full max-w-lg shadow-2xl scale-100 transition-all max-h-[90vh] overflow-y-auto">
                                 <h3 className="font-bold text-xl mb-6 capitalize text-slate-800 flex items-center gap-2">
                                     {modal.type === 'company' ? <Building2 size={24} className="text-indigo-600"/> : modal.type === 'ticket' ? <LifeBuoy size={24} className="text-indigo-600"/> : <Building size={24} className="text-indigo-600"/>}
-                                    {modal.type === 'company' ? 'Empresa' : modal.type === 'ticket' ? 'Ticket' : 'Oficina'}
+                                    {modal.type === 'company' ? 'Empresa' : modal.type === 'ticket' ? 'Gestión de Ticket' : 'Oficina'}
                                 </h3>
                                 
                                 {modal.type === 'office' && (
                                     <div className="space-y-4">
-                                        <div className="space-y-1"><label className="text-xs font-bold text-slate-500 uppercase">Nombre</label><input className="border w-full p-3 rounded-lg bg-slate-50 focus:bg-white outline-none" placeholder="Ej. Torre A" value={forms.office.name} onChange={e=>setForms(f=>({...f, office:{...f.office, name:e.target.value}}))}/></div>
-                                        <div className="space-y-1"><label className="text-xs font-bold text-slate-500 uppercase">Dirección</label><input className="border w-full p-3 rounded-lg bg-slate-50 focus:bg-white outline-none" placeholder="Calle, Número, Colonia" value={forms.office.address} onChange={e=>setForms(f=>({...f, office:{...f.office, address:e.target.value}}))}/></div>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div className="space-y-1 col-span-2"><label className="text-xs font-bold text-slate-500 uppercase">Nombre</label><input className="border w-full p-3 rounded-lg bg-slate-50 focus:bg-white outline-none" placeholder="Ej. Torre A" value={forms.office.name} onChange={e=>setForms(f=>({...f, office:{...f.office, name:e.target.value}}))}/></div>
+                                            <div className="space-y-1 col-span-2"><label className="text-xs font-bold text-slate-500 uppercase">Dirección</label><input className="border w-full p-3 rounded-lg bg-slate-50 focus:bg-white outline-none" placeholder="Calle, Número, Colonia" value={forms.office.address} onChange={e=>setForms(f=>({...f, office:{...f.office, address:e.target.value}}))}/></div>
+                                            <div className="space-y-1"><label className="text-xs font-bold text-slate-500 uppercase">Fin de Contrato</label><input type="date" className="border w-full p-3 rounded-lg bg-slate-50 focus:bg-white outline-none" value={forms.office.contractEndDate} onChange={e=>setForms(f=>({...f, office:{...f.office, contractEndDate:e.target.value}}))}/></div>
+                                            <div className="space-y-1"><label className="text-xs font-bold text-slate-500 uppercase">Arrendador</label><input className="border w-full p-3 rounded-lg bg-slate-50 focus:bg-white outline-none" placeholder="Nombre contacto" value={forms.office.landlordName} onChange={e=>setForms(f=>({...f, office:{...f.office, landlordName:e.target.value}}))}/></div>
+                                            <div className="space-y-1 col-span-2"><label className="text-xs font-bold text-slate-500 uppercase">Notas</label><textarea className="border w-full p-3 rounded-lg bg-slate-50 focus:bg-white outline-none h-20" placeholder="Accesos, claves, etc..." value={forms.office.notes} onChange={e=>setForms(f=>({...f, office:{...f.office, notes:e.target.value}}))}/></div>
+                                        </div>
                                         <div className="flex justify-end gap-3 pt-4 border-t mt-2"><button onClick={()=>setModal(null)} className="px-5 py-2.5 border border-slate-200 text-slate-600 font-medium rounded-lg hover:bg-slate-50">Cancelar</button><button onClick={saveOffice} className="px-5 py-2.5 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700">Guardar</button></div>
                                     </div>
                                 )}
 
                                 {modal.type === 'company' && (
                                     <div className="space-y-4">
-                                        <div className="space-y-1"><label className="text-xs font-bold text-slate-500 uppercase">Nombre Empresa</label><input className="border w-full p-3 rounded-lg bg-slate-50 focus:bg-white outline-none" placeholder="Ej. CORIA Digital" value={forms.company.name} onChange={e=>setForms(f=>({...f, company:{...f.company, name:e.target.value}}))}/></div>
-                                        <div className="space-y-1"><label className="text-xs font-bold text-slate-500 uppercase">Sitio Web</label><input className="border w-full p-3 rounded-lg bg-slate-50 focus:bg-white outline-none" placeholder="https://coriadigital.com" value={forms.company.webUrl} onChange={e=>setForms(f=>({...f, company:{...f.company, webUrl:e.target.value}}))}/></div>
+                                        <div className="flex gap-4 items-center mb-2 bg-amber-50 p-2 rounded-lg border border-amber-100">
+                                            <Crown size={20} className={forms.company.isLeader ? "text-amber-500 fill-amber-500" : "text-slate-300"}/>
+                                            <label className="text-sm font-bold text-slate-700 flex-1 cursor-pointer select-none">¿Es Empresa Líder? <input type="checkbox" className="ml-2 accent-amber-500" checked={forms.company.isLeader} onChange={e=>setForms(f=>({...f, company:{...f.company, isLeader:e.target.checked}}))}/></label>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div className="space-y-1 col-span-2"><label className="text-xs font-bold text-slate-500 uppercase">Nombre Empresa</label><input className="border w-full p-3 rounded-lg bg-slate-50 focus:bg-white outline-none" value={forms.company.name} onChange={e=>setForms(f=>({...f, company:{...f.company, name:e.target.value}}))}/></div>
+                                            <div className="space-y-1"><label className="text-xs font-bold text-slate-500 uppercase">Teléfono</label><input className="border w-full p-3 rounded-lg bg-slate-50 focus:bg-white outline-none" value={forms.company.phoneNumber} onChange={e=>setForms(f=>({...f, company:{...f.company, phoneNumber:e.target.value}}))}/></div>
+                                            <div className="space-y-1"><label className="text-xs font-bold text-slate-500 uppercase">Interior</label><input className="border w-full p-3 rounded-lg bg-slate-50 focus:bg-white outline-none" value={forms.company.interior} onChange={e=>setForms(f=>({...f, company:{...f.company, interior:e.target.value}}))}/></div>
+                                            <div className="space-y-1 col-span-2"><label className="text-xs font-bold text-slate-500 uppercase">Sitio Web</label><input className="border w-full p-3 rounded-lg bg-slate-50 focus:bg-white outline-none" value={forms.company.webUrl} onChange={e=>setForms(f=>({...f, company:{...f.company, webUrl:e.target.value}}))}/></div>
+                                        </div>
+                                        
+                                        {/* CHECKLIST RESTAURADO */}
+                                        <div className="border-t pt-4">
+                                            <h4 className="font-bold text-sm text-slate-700 mb-2 flex items-center gap-2"><CheckSquare size={16}/> Checklist de Alta</h4>
+                                            <div className="grid grid-cols-2 gap-2 text-xs">
+                                                {Object.keys(forms.company.checklist || {}).map(k => (
+                                                    <label key={k} className="flex items-center gap-2 p-2 rounded hover:bg-slate-50 cursor-pointer border border-transparent hover:border-slate-100">
+                                                        <input type="checkbox" className="accent-indigo-600" checked={forms.company.checklist[k]} onChange={e=>setForms(f=>({...f, company:{...f.company, checklist:{...f.company.checklist, [k]:e.target.checked}}}))}/>
+                                                        <span className="capitalize">{k.replace(/([A-Z])/g, ' $1')}</span>
+                                                    </label>
+                                                ))}
+                                            </div>
+                                        </div>
+
                                         <div className="flex justify-end gap-3 pt-4 border-t mt-2"><button onClick={()=>setModal(null)} className="px-5 py-2.5 border border-slate-200 text-slate-600 font-medium rounded-lg hover:bg-slate-50">Cancelar</button><button onClick={saveCompany} className="px-5 py-2.5 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700">Guardar</button></div>
                                     </div>
                                 )}
 
                                 {modal.type === 'ticket' && (
                                     <div className="space-y-4">
-                                        <div className="space-y-1"><label className="text-xs font-bold text-slate-500 uppercase">Oficina Afectada</label><select className="border w-full p-3 rounded-lg bg-slate-50 focus:bg-white outline-none" value={forms.ticket.officeId} onChange={e=>setForms(f=>({...f, ticket:{...f.ticket, officeId:e.target.value}}))}><option value="">Selecciona Oficina...</option>{items.offices.map(o=><option key={o.id} value={o.id}>{o.name}</option>)}</select></div>
-                                        <div className="space-y-1"><label className="text-xs font-bold text-slate-500 uppercase">Descripción</label><textarea className="border w-full p-3 rounded-lg bg-slate-50 focus:bg-white outline-none h-24 resize-none" placeholder="Detalla qué está fallando..." value={forms.ticket.description} onChange={e=>setForms(f=>({...f, ticket:{...f.ticket, description:e.target.value}}))}/></div>
-                                        <div className="flex justify-end gap-3 pt-4 border-t mt-2"><button onClick={()=>setModal(null)} className="px-5 py-2.5 border border-slate-200 text-slate-600 font-medium rounded-lg hover:bg-slate-50">Cancelar</button><button onClick={saveTicket} className="px-5 py-2.5 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700">Crear Ticket</button></div>
+                                        {!modal.data && (
+                                            <>
+                                                <div className="space-y-1"><label className="text-xs font-bold text-slate-500 uppercase">Oficina Afectada</label><select className="border w-full p-3 rounded-lg bg-slate-50 focus:bg-white outline-none" value={forms.ticket.officeId} onChange={e=>setForms(f=>({...f, ticket:{...f.ticket, officeId:e.target.value}}))}><option value="">Selecciona Oficina...</option>{items.offices.map(o=><option key={o.id} value={o.id}>{o.name}</option>)}</select></div>
+                                                <div className="space-y-1"><label className="text-xs font-bold text-slate-500 uppercase">Descripción</label><textarea className="border w-full p-3 rounded-lg bg-slate-50 focus:bg-white outline-none h-24 resize-none" placeholder="Detalla qué está fallando..." value={forms.ticket.description} onChange={e=>setForms(f=>({...f, ticket:{...f.ticket, description:e.target.value}}))}/></div>
+                                            </>
+                                        )}
+                                        {modal.data && (
+                                            <div className="space-y-3">
+                                                <div className="bg-slate-50 p-3 rounded border text-sm text-slate-600 italic">"{forms.ticket.description}"</div>
+                                                <div className="space-y-1">
+                                                    <label className="text-xs font-bold text-slate-500 uppercase">Agregar Seguimiento</label>
+                                                    <textarea className="border w-full p-3 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500 outline-none h-20" placeholder="Escribe un avance..." value={forms.ticket.newUpdate} onChange={e=>setForms(f=>({...f, ticket:{...f.ticket, newUpdate:e.target.value}}))}/>
+                                                </div>
+                                            </div>
+                                        )}
+                                        <div className="flex justify-end gap-3 pt-4 border-t mt-2"><button onClick={()=>setModal(null)} className="px-5 py-2.5 border border-slate-200 text-slate-600 font-medium rounded-lg hover:bg-slate-50">Cancelar</button><button onClick={saveTicket} className="px-5 py-2.5 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700">{modal.data ? 'Actualizar' : 'Crear Ticket'}</button></div>
                                     </div>
                                 )}
                             </div>
@@ -388,4 +559,3 @@
     </script>
 </body>
 </html>
-
