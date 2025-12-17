@@ -63,7 +63,7 @@
         import { initializeApp, getApps, getApp } from 'firebase/app';
         import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
         import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, serverTimestamp } from 'firebase/firestore';
-        import { LayoutDashboard, Building2, Building, LifeBuoy, Plus, Edit, Trash2, Settings, ShieldAlert, LogOut, User, Lock, Mail, Info, Database, Menu, X, Crown, AlertTriangle, Download, History, MapPin, CheckSquare, Globe, Phone, FileText, Key, Calendar, MessageSquare, Archive, Eye, EyeOff, DollarSign, Zap, Droplets, Wrench, ChevronDown, ChevronUp, AlertCircle, UserCheck } from 'lucide-react';
+        import { LayoutDashboard, Building2, Building, LifeBuoy, Plus, Edit, Trash2, Settings, ShieldAlert, LogOut, User, Lock, Mail, Info, Database, Menu, X, Crown, AlertTriangle, Download, History, MapPin, CheckSquare, Globe, Phone, FileText, Key, Calendar, MessageSquare, Archive, Eye, EyeOff, DollarSign, Zap, Droplets, Wrench, ChevronDown, ChevronUp, AlertCircle, UserCheck, ClipboardList, CheckCircle } from 'lucide-react';
 
         // ------------------------------------------------------------------
         // ---  ¡ATENCIÓN! PEGA AQUÍ TUS DATOS DE FIREBASE (Project Settings) ---
@@ -146,6 +146,41 @@
         const getLeaderCompany = (office) => {
             if(!office.companies) return null;
             return office.companies.find(c => c.isLeader && c.status !== 'archived');
+        };
+
+        // Calculo del segundo lunes del mes actual
+        const getSecondMondayOfMonth = () => {
+            const date = new Date();
+            const year = date.getFullYear();
+            const month = date.getMonth();
+            const firstDay = new Date(year, month, 1);
+            const dayOfWeek = firstDay.getDay(); // 0 (Dom) - 6 (Sab)
+            
+            // Dias hasta el primer lunes
+            let daysToFirstMonday = (1 - dayOfWeek + 7) % 7;
+            if (daysToFirstMonday === 0 && dayOfWeek === 1) daysToFirstMonday = 0; // Si hoy es lunes
+            else if (dayOfWeek === 0) daysToFirstMonday = 1;
+            else daysToFirstMonday = (8 - dayOfWeek);
+
+            // Segundo lunes = Primer lunes + 7 dias
+            const firstMondayDate = 1 + daysToFirstMonday;
+            const secondMondayDate = firstMondayDate + 7;
+            
+            return new Date(year, month, secondMondayDate);
+        };
+
+        const isAuditDue = (audits = []) => {
+            const today = new Date();
+            const secondMonday = getSecondMondayOfMonth();
+            const currentMonthKey = `${today.getFullYear()}-${today.getMonth() + 1}`;
+            
+            // Si hoy es o ya paso el segundo lunes
+            if (today >= secondMonday) {
+                // Checar si ya existe auditoria para este mes
+                const hasAudit = audits.some(a => a.monthKey === currentMonthKey);
+                return !hasAudit;
+            }
+            return false;
         };
 
         // --- COMPONENTES ---
@@ -244,11 +279,12 @@
             const [expandedOffices, setExpandedOffices] = useState({}); 
 
             // Datos
-            const [items, setItems] = useState({ offices: [], tickets: [] });
+            const [items, setItems] = useState({ offices: [], tickets: [], audits: [] });
             
             // Modales
             const [modal, setModal] = useState(null);
             const [archiveModal, setArchiveModal] = useState(null); 
+            const [auditModal, setAuditModal] = useState(null); // Nuevo modal para auditoria
             const [archiveReason, setArchiveReason] = useState('');
             
             // Estado de Formularios
@@ -279,6 +315,9 @@
                 }
             });
 
+            // Estado para formulario de auditoria
+            const [auditForm, setAuditForm] = useState([]);
+
             const ticketCategories = [
                 'Falla de Internet', 
                 'Falla Eléctrica (Sin Luz)', 
@@ -303,6 +342,15 @@
             // Alertas
             const alerts = useMemo(() => {
                 const list = [];
+                // Auditoria Pendiente
+                if (isAuditDue(items.audits)) {
+                    list.push({
+                        type: 'audit', priority: 1, 
+                        title: 'Auditoría Mensual Requerida', 
+                        msg: 'Hoy es el segundo lunes del mes. Se requiere seguimiento telefónico.'
+                    });
+                }
+
                 items.offices.filter(o => o.status !== 'archived').forEach(o => {
                     if(o.contractEndDate) {
                         const days = getDaysDiff(o.contractEndDate);
@@ -324,7 +372,7 @@
                     }
                 });
                 return list.sort((a,b)=>a.priority-b.priority);
-            }, [items.offices]);
+            }, [items.offices, items.audits]);
 
             useEffect(() => {
                 const unsub = onAuthStateChanged(auth, u => {
@@ -341,7 +389,10 @@
                     s => setItems(p => ({...p, offices: s.docs.map(d=>({id:d.id, ...d.data()}))})), e => console.error(e));
                 const unsub2 = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'tickets'), 
                     s => setItems(p => ({...p, tickets: s.docs.map(d=>({id:d.id, ...d.data()})).sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0))})), e => console.error(e));
-                return () => { unsub1(); unsub2(); };
+                const unsub3 = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'audits'), 
+                    s => setItems(p => ({...p, audits: s.docs.map(d=>({id:d.id, ...d.data()})).sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0))})), e => console.error(e));
+                
+                return () => { unsub1(); unsub2(); unsub3(); };
             }, [user]);
 
             // Handlers
@@ -456,6 +507,50 @@
                 if(confirm("¿Seguro de eliminar permanentemente?")) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', col, id)); 
             };
 
+            // --- AUDITORIA ---
+            const startAudit = () => {
+                // Generar lista plana de todas las empresas activas
+                const flatList = [];
+                items.offices.filter(o => o.status !== 'archived').forEach(o => {
+                    if (o.companies) {
+                        o.companies.forEach((c, idx) => {
+                            if (c.status !== 'archived') {
+                                flatList.push({
+                                    officeId: o.id,
+                                    officeName: o.name,
+                                    companyIdx: idx,
+                                    companyName: c.name,
+                                    phone: c.phoneNumber,
+                                    web: c.webUrl,
+                                    checks: { phoneWorking: false, phoneAnswered: false, webOnline: false },
+                                    notes: ''
+                                });
+                            }
+                        });
+                    }
+                });
+                setAuditForm(flatList);
+                setAuditModal(true);
+            };
+
+            const saveAudit = async () => {
+                const today = new Date();
+                const monthKey = `${today.getFullYear()}-${today.getMonth() + 1}`;
+                
+                try {
+                    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'audits'), {
+                        monthKey,
+                        createdAt: serverTimestamp(),
+                        auditor: user.email,
+                        details: auditForm
+                    });
+                    setAuditModal(false);
+                    alert("Auditoría guardada correctamente.");
+                } catch (e) {
+                    alert("Error guardando auditoría: " + e.message);
+                }
+            };
+
             const exportExcel = () => {
                 let csv = "ID,Estado,Oficina,Direccion,Vencimiento Contrato,Empresa,Estado Empresa,Lider,Vencimiento Dominio,Telefono,Web,RFC,Direccion Fiscal,Representante,Contacto\n";
                 items.offices.forEach(o => {
@@ -495,7 +590,7 @@
                         <div className="p-6 border-b border-slate-800 flex items-center justify-between">
                             <div className="flex items-center gap-3">
                                 <div className="bg-indigo-600 p-2 rounded-lg"><Building2 size={20}/></div>
-                                <div><h1 className="font-bold tracking-wider">Control</h1><p className="text-[10px] text-indigo-400 uppercase tracking-widest">Empresas</p></div>
+                                <div><h1 className="font-bold tracking-wider">CORIA</h1><p className="text-[10px] text-indigo-400 uppercase tracking-widest">Aperturas</p></div>
                             </div>
                             <button onClick={()=>setMobileMenuOpen(false)} className="md:hidden text-slate-400"><X size={20}/></button>
                         </div>
@@ -507,6 +602,7 @@
                             <button onClick={()=>{setTab('dashboard');setMobileMenuOpen(false)}} className={`w-full flex gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${tab==='dashboard'?'bg-indigo-600 text-white':'text-slate-400 hover:bg-slate-800 hover:text-white'}`}><LayoutDashboard size={18}/> Tablero</button>
                             <button onClick={()=>{setTab('offices');setMobileMenuOpen(false)}} className={`w-full flex gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${tab==='offices'?'bg-indigo-600 text-white':'text-slate-400 hover:bg-slate-800 hover:text-white'}`}><Building size={18}/> Oficinas</button>
                             <button onClick={()=>{setTab('tickets');setMobileMenuOpen(false)}} className={`w-full flex gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${tab==='tickets'?'bg-indigo-600 text-white':'text-slate-400 hover:bg-slate-800 hover:text-white'}`}><LifeBuoy size={18}/> Tickets</button>
+                            <button onClick={()=>{setTab('audit');setMobileMenuOpen(false)}} className={`w-full flex gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${tab==='audit'?'bg-indigo-600 text-white':'text-slate-400 hover:bg-slate-800 hover:text-white'}`}><ClipboardList size={18}/> Seguimiento</button>
                         </nav>
                         <div className="p-4 border-t border-slate-800"><button onClick={()=>signOut(auth)} className="flex items-center gap-2 text-xs text-red-400 hover:text-red-300 w-full p-2 rounded"><LogOut size={14}/> Cerrar Sesión</button></div>
                     </aside>
@@ -515,7 +611,7 @@
                         <header className="bg-white px-4 md:px-8 py-4 border-b flex justify-between items-center shadow-sm z-10 shrink-0">
                             <div className="flex items-center gap-3">
                                 <button onClick={()=>setMobileMenuOpen(true)} className="md:hidden text-slate-500 p-1"><Menu size={24}/></button>
-                                <div><h2 className="text-xl font-bold capitalize text-slate-800">{tab === 'tickets' ? 'Mesa de Ayuda' : tab}</h2><p className="text-xs text-slate-400 mt-1 hidden md:block">Gestión operativa</p></div>
+                                <div><h2 className="text-xl font-bold capitalize text-slate-800">{tab === 'tickets' ? 'Mesa de Ayuda' : tab === 'audit' ? 'Seguimiento de Servicios' : tab}</h2><p className="text-xs text-slate-400 mt-1 hidden md:block">Gestión operativa</p></div>
                             </div>
                             <div className="flex gap-2 items-center">
                                 {tab === 'offices' && (
@@ -632,7 +728,7 @@
 
                                     {alerts.length > 0 && (
                                         <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                                            <div className="bg-amber-50 p-4 border-b border-amber-100 flex gap-2 items-center font-bold text-amber-800"><AlertTriangle size={18}/> Alertas de Vencimiento (90 Días)</div>
+                                            <div className="bg-amber-50 p-4 border-b border-amber-100 flex gap-2 items-center font-bold text-amber-800"><AlertTriangle size={18}/> Alertas de Vencimiento / Auditoría</div>
                                             <div className="divide-y divide-slate-100">
                                                 {alerts.map((a,i) => (
                                                     <div key={i} className="p-4 flex justify-between items-center hover:bg-slate-50">
@@ -763,6 +859,7 @@
                                                         </div>
                                                         <p className="text-xs text-slate-500 font-bold mb-1 truncate max-w-[180px]">
                                                             {t.companyName || 'General'} 
+                                                            {t.assignedTo && <span className="ml-2 bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full font-normal">Asignado a: {t.assignedTo}</span>}
                                                         </p>
                                                         <p className="text-sm text-slate-600 leading-relaxed line-clamp-2">{t.description}</p>
                                                     </div>
@@ -788,6 +885,65 @@
                                             </div>
                                         </div>
                                     )})}
+                                </div>
+                            )}
+
+                            {/* NUEVA PESTAÑA: SEGUIMIENTO */}
+                            {tab === 'audit' && (
+                                <div className="max-w-5xl mx-auto space-y-6 animate-[fadeIn_0.3s_ease-out]">
+                                    <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-200 flex flex-col md:flex-row justify-between items-center gap-6">
+                                        <div>
+                                            <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2"><ClipboardList/> Auditoría Mensual de Servicios</h2>
+                                            <p className="text-sm text-slate-500 mt-1">Verificación de conectividad telefónica y web de cada empresa.</p>
+                                        </div>
+                                        <button onClick={startAudit} className="bg-indigo-600 text-white px-6 py-3 rounded-lg font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-200 transition transform active:scale-95">
+                                            Realizar Auditoría Ahora
+                                        </button>
+                                    </div>
+
+                                    {/* HISTORIAL DE AUDITORIAS */}
+                                    <h3 className="font-bold text-slate-500 text-xs uppercase mt-8 mb-4">Historial de Verificaciones</h3>
+                                    <div className="space-y-4">
+                                        {items.audits.map(audit => (
+                                            <div key={audit.id} className="bg-white rounded-lg border border-slate-200 overflow-hidden">
+                                                <div className="bg-slate-50 p-4 border-b border-slate-200 flex justify-between items-center">
+                                                    <div>
+                                                        <p className="font-bold text-slate-700">Auditoría {audit.monthKey}</p>
+                                                        <p className="text-xs text-slate-400">Realizada por {audit.auditor} el {formatDateTime(audit.createdAt)}</p>
+                                                    </div>
+                                                    <span className="bg-emerald-100 text-emerald-700 text-xs font-bold px-3 py-1 rounded-full">Completada</span>
+                                                </div>
+                                                <div className="p-4 overflow-x-auto">
+                                                    <table className="w-full text-xs text-left">
+                                                        <thead>
+                                                            <tr className="text-slate-400 border-b">
+                                                                <th className="pb-2">Oficina / Empresa</th>
+                                                                <th className="pb-2 text-center">Tel. Funciona</th>
+                                                                <th className="pb-2 text-center">Tel. Contesta</th>
+                                                                <th className="pb-2 text-center">Web Online</th>
+                                                                <th className="pb-2">Observaciones</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            {audit.details.map((d, i) => (
+                                                                <tr key={i} className="border-b last:border-0 hover:bg-slate-50">
+                                                                    <td className="py-2">
+                                                                        <p className="font-bold">{d.companyName}</p>
+                                                                        <p className="text-[10px] text-slate-400">{d.officeName}</p>
+                                                                    </td>
+                                                                    <td className="py-2 text-center">{d.checks.phoneWorking ? '✅' : '❌'}</td>
+                                                                    <td className="py-2 text-center">{d.checks.phoneAnswered ? '✅' : '❌'}</td>
+                                                                    <td className="py-2 text-center">{d.checks.webOnline ? '✅' : '❌'}</td>
+                                                                    <td className="py-2 text-slate-500 italic truncate max-w-[150px]">{d.notes}</td>
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                        ))}
+                                        {items.audits.length === 0 && <p className="text-center text-slate-400 text-sm py-10">No hay auditorías registradas.</p>}
+                                    </div>
                                 </div>
                             )}
                         </div>
@@ -816,6 +972,81 @@
                                 <div className="flex justify-end gap-2">
                                     <button onClick={()=>setArchiveModal(null)} className="px-4 py-2 border rounded-lg text-sm hover:bg-slate-50">Cancelar</button>
                                     <button onClick={handleArchive} className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-bold hover:bg-red-700">Confirmar Baja</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* MODAL AUDITORIA */}
+                    {auditModal && (
+                        <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-50 backdrop-blur-sm fade-in">
+                            <div className="bg-white rounded-2xl w-full max-w-4xl shadow-2xl flex flex-col max-h-[90vh]">
+                                <div className="p-6 border-b border-slate-100 flex justify-between items-center">
+                                    <h3 className="font-bold text-xl text-slate-800 flex items-center gap-2"><ClipboardList className="text-indigo-600"/> Auditoría Mensual</h3>
+                                    <button onClick={()=>setAuditModal(false)}><X size={24} className="text-slate-400 hover:text-red-500"/></button>
+                                </div>
+                                
+                                <div className="p-6 overflow-y-auto flex-1 bg-slate-50">
+                                    <div className="space-y-4">
+                                        {auditForm.map((item, idx) => (
+                                            <div key={idx} className="bg-white p-4 rounded-lg shadow-sm border border-slate-200 flex flex-col md:flex-row gap-4 md:items-center">
+                                                <div className="flex-1">
+                                                    <p className="font-bold text-indigo-900">{item.companyName}</p>
+                                                    <p className="text-xs text-slate-500">{item.officeName}</p>
+                                                    <div className="flex gap-3 text-xs text-slate-400 mt-1">
+                                                        <span className="flex items-center gap-1"><Phone size={10}/> {item.phone || 'S/N'}</span>
+                                                        <span className="flex items-center gap-1"><Globe size={10}/> {item.web || 'S/W'}</span>
+                                                    </div>
+                                                </div>
+                                                
+                                                <div className="flex flex-wrap gap-4 items-center">
+                                                    <label className="flex items-center gap-2 text-xs font-bold cursor-pointer bg-slate-50 px-3 py-2 rounded border hover:bg-slate-100">
+                                                        <input type="checkbox" className="accent-emerald-500" checked={item.checks.phoneWorking} onChange={e=>{
+                                                            const list = [...auditForm];
+                                                            list[idx].checks.phoneWorking = e.target.checked;
+                                                            setAuditForm(list);
+                                                        }}/> 
+                                                        📞 Línea OK
+                                                    </label>
+                                                    <label className="flex items-center gap-2 text-xs font-bold cursor-pointer bg-slate-50 px-3 py-2 rounded border hover:bg-slate-100">
+                                                        <input type="checkbox" className="accent-emerald-500" checked={item.checks.phoneAnswered} onChange={e=>{
+                                                            const list = [...auditForm];
+                                                            list[idx].checks.phoneAnswered = e.target.checked;
+                                                            setAuditForm(list);
+                                                        }}/> 
+                                                        👤 Contestó
+                                                    </label>
+                                                    <label className="flex items-center gap-2 text-xs font-bold cursor-pointer bg-slate-50 px-3 py-2 rounded border hover:bg-slate-100">
+                                                        <input type="checkbox" className="accent-emerald-500" checked={item.checks.webOnline} onChange={e=>{
+                                                            const list = [...auditForm];
+                                                            list[idx].checks.webOnline = e.target.checked;
+                                                            setAuditForm(list);
+                                                        }}/> 
+                                                        🌐 Web OK
+                                                    </label>
+                                                </div>
+
+                                                <div className="w-full md:w-1/3">
+                                                    <input 
+                                                        className="w-full border p-2 rounded text-xs focus:ring-2 focus:ring-indigo-500 outline-none" 
+                                                        placeholder="Notas / Quién contestó..." 
+                                                        value={item.notes}
+                                                        onChange={e=>{
+                                                            const list = [...auditForm];
+                                                            list[idx].notes = e.target.value;
+                                                            setAuditForm(list);
+                                                        }}
+                                                    />
+                                                </div>
+                                            </div>
+                                        ))}
+                                        {auditForm.length === 0 && <p className="text-center text-slate-400">No hay empresas activas para auditar.</p>}
+                                    </div>
+                                </div>
+
+                                <div className="p-6 border-t border-slate-100 flex justify-end gap-3 bg-white rounded-b-2xl">
+                                    <button onClick={()=>setAuditModal(false)} className="px-5 py-2.5 border border-slate-200 text-slate-600 font-medium rounded-lg hover:bg-slate-50">Cancelar</button>
+                                    <button onClick={saveAudit} className="px-6 py-2.5 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-200">Guardar Auditoría</button>
                                 </div>
                             </div>
                         </div>
