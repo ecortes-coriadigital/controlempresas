@@ -68,9 +68,18 @@
             try {
                 // Primero intentamos leer del entorno (Canvas)
                 if (typeof __firebase_config !== 'undefined') return JSON.parse(__firebase_config);
-                // Si no, buscamos en el almacenamiento local del navegador
-                const local = localStorage.getItem('apertura_firebase_config');
-                if (local) return JSON.parse(local);
+                
+                // AQUÍ ES DONDE PEGAS TUS DATOS DE FIREBASE
+                // Reemplaza todo el bloque de comentarios y el 'return null' con esto:
+                return {
+                  apiKey: "AIzaSyA9gk593APfDsDIG3VGTclmzs8aO9oLgJg",
+  authDomain: "control-aperturas-27baf.firebaseapp.com",
+  projectId: "control-aperturas-27baf",
+  storageBucket: "control-aperturas-27baf.firebasestorage.app",
+  messagingSenderId: "291057486602",
+  appId: "1:291057486602:web:0d05d616ea84cd69e448f3"
+                };
+
             } catch (e) { console.error(e); }
             return null;
         };
