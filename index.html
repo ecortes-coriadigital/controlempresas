@@ -82,11 +82,12 @@
 
         // ------------------------------------------------------------------
         // ---  CONFIGURACIÓN DE EMAILJS (Notificaciones) ---
+        // ---  IMPORTANTE: Reemplaza con tus datos reales de EmailJS ---
         // ------------------------------------------------------------------
         const emailJsConfig = {
-            serviceID: "service_est9107",   // Ej: "service_gmail"
-            templateID: "template_jwch8iq", // Ej: "template_tickets"
-            publicKey: "G2zKdLy_uPhgr8YMK"    // Ej: "aBcdEfGhIjKlMnOpQ"
+            serviceID: "service_est9107",   // Ej: "service_e9107" (Busca en Email Services)
+            templateID: "template_jwch8iq", // Ej: "template_jh8iq" (Busca en Email Templates)
+            publicKey: "G2zKdLy_uPhgr8YMK"    // Ej: "G2zKdLy_uPhgr8YMK" (Busca en Account > API Keys)
         };
         // ------------------------------------------------------------------
 
@@ -102,8 +103,8 @@
                 db = getFirestore(app);
             }
             
-            // Inicializar EmailJS si está configurado
-            if (emailJsConfig.publicKey !== "TU_PUBLIC_KEY" && window.emailjs) {
+            // Inicializar EmailJS si está configurado y no tiene placeholders
+            if (emailJsConfig.publicKey !== "G2zKdLy_uPhgr8YMK" && window.emailjs) {
                 window.emailjs.init(emailJsConfig.publicKey);
             }
         } catch (e) {
@@ -444,9 +445,14 @@
                 setModal(null);
             };
 
-            // FUNCION PARA ENVIAR CORREO (Solo si hay configuración)
+            // FUNCION PARA ENVIAR CORREO (CON DIAGNOSTICO MEJORADO)
             const sendNotificationEmail = async (ticketData) => {
-                if (emailJsConfig.serviceID === "TU_SERVICE_ID" || !window.emailjs) return;
+                // Validación básica de que EmailJS está configurado
+                if (emailJsConfig.serviceID.includes("TU_SERVICE_ID") || !window.emailjs) {
+                    alert("⚠️ Aviso: El correo no se envió porque faltan las credenciales de EmailJS en el código.");
+                    console.log("EmailJS no configurado.");
+                    return;
+                }
 
                 const templateParams = {
                     category: ticketData.category,
@@ -460,10 +466,20 @@
 
                 try {
                     await window.emailjs.send(emailJsConfig.serviceID, emailJsConfig.templateID, templateParams);
-                    console.log("Notificación enviada");
+                    alert("✅ Ticket creado y notificación enviada al equipo.");
                 } catch (err) {
                     console.error("Error enviando email:", err);
-                    // No bloqueamos el flujo, solo logueamos el error
+                    
+                    let errorMsg = "Error desconocido.";
+                    if (err.text?.includes("service ID not found")) {
+                        errorMsg = `El Service ID '${emailJsConfig.serviceID}' no existe. Verifica tu dashboard.`;
+                    } else if (err.text?.includes("template ID not found")) {
+                        errorMsg = `El Template ID '${emailJsConfig.templateID}' no existe.`;
+                    } else if (err.text?.includes("user ID not found") || err.text?.includes("public key")) {
+                        errorMsg = "La Public Key es incorrecta.";
+                    }
+
+                    alert(`⚠️ El ticket se guardó en el sistema, pero FALLÓ el envío del correo.\n\nCausa: ${errorMsg}`);
                 }
             };
 
