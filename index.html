@@ -18,6 +18,9 @@
         ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
     </style>
 
+    <!-- EmailJS SDK -->
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
+
     <script type="importmap">
     {
         "imports": {
@@ -63,7 +66,6 @@
         import { initializeApp, getApps, getApp } from 'firebase/app';
         import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
         import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, serverTimestamp } from 'firebase/firestore';
-        // Se agregó 'Search' a la lista de imports
         import { LayoutDashboard, Building2, Building, LifeBuoy, Plus, Edit, Trash2, Settings, ShieldAlert, LogOut, User, Lock, Mail, Info, Database, Menu, X, Crown, AlertTriangle, Download, History, MapPin, CheckSquare, Globe, Phone, FileText, Key, Calendar, MessageSquare, Archive, Eye, EyeOff, DollarSign, Zap, Droplets, Wrench, ChevronDown, ChevronUp, AlertCircle, UserCheck, ClipboardList, Bell, Save, PlayCircle, LockKeyhole, Search } from 'lucide-react';
 
         // ------------------------------------------------------------------
@@ -76,6 +78,15 @@
             storageBucket: "control-aperturas-27baf.firebasestorage.app",
             messagingSenderId: "291057486602",
             appId: "1:291057486602:web:0d05d616ea84cd69e448f3"
+        };
+
+        // ------------------------------------------------------------------
+        // ---  CONFIGURACIÓN DE EMAILJS (Notificaciones) ---
+        // ------------------------------------------------------------------
+        const emailJsConfig = {
+            serviceID: "service_est9107",   // Ej: "service_gmail"
+            templateID: "template_jwch8iq", // Ej: "template_tickets"
+            publicKey: "G2zKdLy_uPhgr8YMK"    // Ej: "aBcdEfGhIjKlMnOpQ"
         };
         // ------------------------------------------------------------------
 
@@ -90,9 +101,14 @@
                 auth = getAuth(app);
                 db = getFirestore(app);
             }
+            
+            // Inicializar EmailJS si está configurado
+            if (emailJsConfig.publicKey !== "TU_PUBLIC_KEY" && window.emailjs) {
+                window.emailjs.init(emailJsConfig.publicKey);
+            }
         } catch (e) {
-            console.error("Error inicializando Firebase:", e);
-            throw new Error("Error en la configuración de Firebase: " + e.message);
+            console.error("Error inicializando Firebase o EmailJS:", e);
+            throw new Error("Error de configuración: " + e.message);
         }
 
         // --- UTILS ---
@@ -428,6 +444,29 @@
                 setModal(null);
             };
 
+            // FUNCION PARA ENVIAR CORREO (Solo si hay configuración)
+            const sendNotificationEmail = async (ticketData) => {
+                if (emailJsConfig.serviceID === "TU_SERVICE_ID" || !window.emailjs) return;
+
+                const templateParams = {
+                    category: ticketData.category,
+                    priority: ticketData.priority.toUpperCase(),
+                    description: ticketData.description,
+                    office_name: ticketData.officeName,
+                    company_name: ticketData.companyName,
+                    user_email: user.email,
+                    date: formatDate(new Date())
+                };
+
+                try {
+                    await window.emailjs.send(emailJsConfig.serviceID, emailJsConfig.templateID, templateParams);
+                    console.log("Notificación enviada");
+                } catch (err) {
+                    console.error("Error enviando email:", err);
+                    // No bloqueamos el flujo, solo logueamos el error
+                }
+            };
+
             const saveTicket = async () => {
                 const ref = collection(db, 'artifacts', appId, 'public', 'data', 'tickets');
                 const office = items.offices.find(o => o.id === forms.ticket.officeId);
@@ -446,6 +485,7 @@
                 }
 
                 if(modal.data) {
+                    // Edición / Avance
                     const oldStatus = modal.data.status;
                     const newStatus = data.status;
                     
@@ -466,10 +506,14 @@
                     delete data.isGeneralIssue; 
                     await updateDoc(doc(ref, modal.data.id), data);
                 } else {
+                    // Nuevo
                     data.createdAt = serverTimestamp();
                     delete data.newUpdate;
                     delete data.isGeneralIssue;
                     await addDoc(ref, data);
+                    
+                    // ENVIAR NOTIFICACION EMAIL AL CREAR NUEVO
+                    sendNotificationEmail(data);
                 }
                 setModal(null);
             };
