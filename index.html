@@ -66,7 +66,7 @@
         import { initializeApp, getApps, getApp } from 'firebase/app';
         import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
         import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, serverTimestamp } from 'firebase/firestore';
-        import { LayoutDashboard, Building2, Building, LifeBuoy, Plus, Edit, Trash2, Settings, ShieldAlert, LogOut, User, Lock, Mail, Info, Database, Menu, X, Crown, AlertTriangle, Download, History, MapPin, CheckSquare, Globe, Phone, FileText, Key, Calendar, MessageSquare, Archive, Eye, EyeOff, DollarSign, Zap, Droplets, Wrench, ChevronDown, ChevronUp, AlertCircle, UserCheck, ClipboardList, Bell, Save, PlayCircle, LockKeyhole, Search } from 'lucide-react';
+        import { LayoutDashboard, Building2, Building, LifeBuoy, Plus, Edit, Trash2, Settings, ShieldAlert, LogOut, User, Lock, Mail, Info, Database, Menu, X, Crown, AlertTriangle, Download, History, MapPin, CheckSquare, Globe, Phone, FileText, Key, Calendar, MessageSquare, Archive, Eye, EyeOff, DollarSign, Zap, Droplets, Wrench, ChevronDown, ChevronUp, AlertCircle, UserCheck, ClipboardList, Bell, Save, PlayCircle, LockKeyhole, Search, CheckCircle } from 'lucide-react';
 
         // ------------------------------------------------------------------
         // ---  ¡ATENCIÓN! PEGA AQUÍ TUS DATOS DE FIREBASE (Project Settings) ---
@@ -82,12 +82,11 @@
 
         // ------------------------------------------------------------------
         // ---  CONFIGURACIÓN DE EMAILJS (Notificaciones) ---
-        // ---  IMPORTANTE: Reemplaza con tus datos reales de EmailJS ---
         // ------------------------------------------------------------------
         const emailJsConfig = {
-            serviceID: "service_est9107",   // Ej: "service_e9107" (Busca en Email Services)
-            templateID: "template_jwch8iq", // Ej: "template_jh8iq" (Busca en Email Templates)
-            publicKey: "G2zKdLy_uPhgr8YMK"    // Ej: "G2zKdLy_uPhgr8YMK" (Busca en Account > API Keys)
+            serviceID: "service_est9107",   
+            templateID: "template_jwch8iq", 
+            publicKey: "G2zKdLy_uPhgr8YMK"    
         };
         // ------------------------------------------------------------------
 
@@ -104,7 +103,7 @@
             }
             
             // Inicializar EmailJS si está configurado y no tiene placeholders
-            if (emailJsConfig.publicKey !== "G2zKdLy_uPhgr8YMK" && window.emailjs) {
+            if (emailJsConfig.publicKey && !emailJsConfig.publicKey.startsWith("TU_") && window.emailjs) {
                 window.emailjs.init(emailJsConfig.publicKey);
             }
         } catch (e) {
@@ -296,6 +295,10 @@
             const [expandedOffices, setExpandedOffices] = useState({}); 
             const [showNotifications, setShowNotifications] = useState(false);
             const [searchTerm, setSearchTerm] = useState('');
+            
+            // Nuevo Estado para Pestañas de Tickets y Modal de Exito Email
+            const [ticketFilter, setTicketFilter] = useState('active'); // 'active' | 'resolved'
+            const [emailSuccessModal, setEmailSuccessModal] = useState(false);
 
             // Datos
             const [items, setItems] = useState({ offices: [], tickets: [], audits: [] });
@@ -445,11 +448,10 @@
                 setModal(null);
             };
 
-            // FUNCION PARA ENVIAR CORREO (CON DIAGNOSTICO MEJORADO)
+            // FUNCION PARA ENVIAR CORREO (CON DIAGNOSTICO MEJORADO Y CORRECCIONES 400/422)
             const sendNotificationEmail = async (ticketData) => {
                 // Validación básica de que EmailJS está configurado
                 if (emailJsConfig.serviceID.includes("TU_SERVICE_ID") || !window.emailjs) {
-                    alert("⚠️ Aviso: El correo no se envió porque faltan las credenciales de EmailJS en el código.");
                     console.log("EmailJS no configurado.");
                     return;
                 }
@@ -461,25 +463,34 @@
                     office_name: ticketData.officeName,
                     company_name: ticketData.companyName,
                     user_email: user.email,
-                    date: formatDate(new Date())
+                    date: formatDate(new Date()),
+                    // Estos parámetros adicionales son cruciales para evitar errores 422 si el template espera un destinatario
+                    to_name: "Administrador",
+                    from_name: "Sistema CORIA",
+                    reply_to: user.email,
+                    to_email: "tu_correo@dominio.com" // Reemplaza esto o asegúrate de que el template no lo requiera
                 };
 
                 try {
-                    await window.emailjs.send(emailJsConfig.serviceID, emailJsConfig.templateID, templateParams);
-                    alert("✅ Ticket creado y notificación enviada al equipo.");
+                    // Pasar la PUBLIC KEY explícitamente es la clave para evitar errores de inicialización
+                    await window.emailjs.send(emailJsConfig.serviceID, emailJsConfig.templateID, templateParams, emailJsConfig.publicKey);
+                    // Mostrar Modal Exito
+                    setEmailSuccessModal(true);
                 } catch (err) {
                     console.error("Error enviando email:", err);
                     
                     let errorMsg = "Error desconocido.";
-                    if (err.text?.includes("service ID not found")) {
-                        errorMsg = `El Service ID '${emailJsConfig.serviceID}' no existe. Verifica tu dashboard.`;
+                    if (err.text?.includes("service ID not found") || err.status === 400) {
+                        errorMsg = `El Service ID '${emailJsConfig.serviceID}' es incorrecto o no existe.`;
                     } else if (err.text?.includes("template ID not found")) {
-                        errorMsg = `El Template ID '${emailJsConfig.templateID}' no existe.`;
+                        errorMsg = `El Template ID '${emailJsConfig.templateID}' es incorrecto.`;
+                    } else if (err.status === 422) {
+                        errorMsg = "Error de validación (422). Verifica que el campo 'To Email' en tu Template de EmailJS tenga una dirección válida y no esté vacío.";
                     } else if (err.text?.includes("user ID not found") || err.text?.includes("public key")) {
                         errorMsg = "La Public Key es incorrecta.";
                     }
 
-                    alert(`⚠️ El ticket se guardó en el sistema, pero FALLÓ el envío del correo.\n\nCausa: ${errorMsg}`);
+                    alert(`⚠️ El ticket se guardó, pero falló el envío del correo.\n\nCausa: ${errorMsg}`);
                 }
             };
 
@@ -708,6 +719,11 @@
                 
                 return true;
             });
+
+            // FILTRADO DE TICKETS POR PESTAÑA
+            const activeTickets = items.tickets.filter(t => t.status !== 'resuelto');
+            const resolvedTickets = items.tickets.filter(t => t.status === 'resuelto');
+            const visibleTickets = ticketFilter === 'active' ? activeTickets : resolvedTickets;
 
             const getLeaderStatus = () => {
                 if(modal?.type !== 'company' || !modal?.parent) return { disabled: false, message: '' };
@@ -1085,50 +1101,77 @@
                             )}
 
                             {tab === 'tickets' && (
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-7xl mx-auto animate-[fadeIn_0.3s_ease-out]">
-                                    {items.tickets.map(t => {
-                                        const isResolved = t.status === 'resuelto';
-                                        
-                                        return (
-                                        <div key={t.id} className={`bg-white p-5 rounded-xl shadow-sm border flex flex-col hover:shadow-md transition ${isResolved ? 'border-slate-200 opacity-60 grayscale-[0.5]' : 'border-indigo-100'}`}>
-                                            <div className="flex justify-between items-start mb-4">
-                                                <div className="flex gap-4 items-start">
-                                                    <div className={`mt-1 p-2.5 rounded-full shrink-0 ${t.status==='pendiente'?'bg-red-100 text-red-600':t.status==='proceso'?'bg-amber-100 text-amber-600':'bg-emerald-100 text-emerald-600'}`}>
-                                                        {isResolved ? <CheckSquare size={20}/> : <LifeBuoy size={20}/>}
-                                                    </div>
-                                                    <div>
-                                                        <div className="flex gap-2 items-center mb-1 flex-wrap">
-                                                            <span className="font-bold text-slate-800 uppercase text-xs tracking-wide">{t.category}</span>
-                                                            <span className={`text-[9px] px-2 py-0.5 rounded font-bold uppercase ${t.priority==='urgente'?'bg-red-500 text-white':'bg-slate-100 text-slate-500'}`}>{t.priority}</span>
-                                                        </div>
-                                                        <p className="text-xs text-slate-500 font-bold mb-1 truncate max-w-[180px]">
-                                                            {t.companyName || 'General'} 
-                                                            {t.assignedTo && <span className="ml-2 bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full font-normal">Asignado a: {t.assignedTo}</span>}
-                                                        </p>
-                                                        <p className="text-sm text-slate-600 leading-relaxed line-clamp-2">{t.description}</p>
-                                                    </div>
-                                                </div>
-                                                <div className="flex flex-col items-end gap-2">
-                                                    {userRole === 'admin' && <button onClick={()=>deleteItem('tickets', t.id)} className="text-slate-300 hover:text-red-500"><Trash2 size={16}/></button>}
-                                                </div>
-                                            </div>
+                                <div>
+                                    {/* PESTAÑAS INTERNAS DE TICKETS */}
+                                    <div className="flex gap-2 mb-4 border-b border-slate-200 pb-2 overflow-x-auto">
+                                        <button 
+                                            onClick={() => setTicketFilter('active')} 
+                                            className={`px-4 py-2 rounded-lg text-xs font-bold transition whitespace-nowrap flex items-center gap-2 ${ticketFilter === 'active' ? 'bg-indigo-600 text-white shadow-md' : 'bg-white text-slate-500 hover:bg-slate-50 border border-slate-100'}`}
+                                        >
+                                            <div className={`w-2 h-2 rounded-full ${activeTickets.length > 0 ? 'bg-emerald-400' : 'bg-slate-300'}`}></div>
+                                            En Curso ({activeTickets.length})
+                                        </button>
+                                        <button 
+                                            onClick={() => setTicketFilter('resolved')} 
+                                            className={`px-4 py-2 rounded-lg text-xs font-bold transition whitespace-nowrap flex items-center gap-2 ${ticketFilter === 'resolved' ? 'bg-indigo-600 text-white shadow-md' : 'bg-white text-slate-500 hover:bg-slate-50 border border-slate-100'}`}
+                                        >
+                                            <CheckCircle size={14}/>
+                                            Resueltos ({resolvedTickets.length})
+                                        </button>
+                                    </div>
 
-                                            {/* Footer del Ticket */}
-                                            <div className="mt-auto pt-3 border-t border-slate-50 flex justify-between items-center">
-                                                <div className="flex flex-col">
-                                                    <span className="text-[10px] text-slate-400">{formatDateTime(t.createdAt)}</span>
-                                                    {t.assignedTo && <span className="text-[10px] text-indigo-500 font-medium">Asignado: {t.assignedTo}</span>}
-                                                </div>
-                                                
-                                                <button 
-                                                    onClick={()=>{setForms({...forms, ticket: {...t, newUpdate: ''}}); setModal({type:'ticket', data:t})}} 
-                                                    className={`text-xs px-3 py-1.5 rounded font-bold transition ${isResolved ? 'bg-slate-100 text-slate-500 hover:bg-slate-200' : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'}`}
-                                                >
-                                                    {isResolved ? 'Detalles' : 'Gestionar'}
-                                                </button>
+                                    {/* GRID DE TICKETS FILTRADOS */}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-7xl mx-auto animate-[fadeIn_0.3s_ease-out]">
+                                        {visibleTickets.length === 0 && (
+                                            <div className="col-span-full py-10 text-center text-slate-400 italic">
+                                                No hay tickets en esta sección.
                                             </div>
-                                        </div>
-                                    )})}
+                                        )}
+
+                                        {visibleTickets.map(t => {
+                                            const isResolved = t.status === 'resuelto';
+                                            
+                                            return (
+                                            <div key={t.id} className={`bg-white p-5 rounded-xl shadow-sm border flex flex-col hover:shadow-md transition ${isResolved ? 'border-slate-200 opacity-60 grayscale-[0.5]' : 'border-indigo-100'}`}>
+                                                <div className="flex justify-between items-start mb-4">
+                                                    <div className="flex gap-4 items-start">
+                                                        <div className={`mt-1 p-2.5 rounded-full shrink-0 ${t.status==='pendiente'?'bg-red-100 text-red-600':t.status==='proceso'?'bg-amber-100 text-amber-600':'bg-emerald-100 text-emerald-600'}`}>
+                                                            {isResolved ? <CheckSquare size={20}/> : <LifeBuoy size={20}/>}
+                                                        </div>
+                                                        <div>
+                                                            <div className="flex gap-2 items-center mb-1 flex-wrap">
+                                                                <span className="font-bold text-slate-800 uppercase text-xs tracking-wide">{t.category}</span>
+                                                                <span className={`text-[9px] px-2 py-0.5 rounded font-bold uppercase ${t.priority==='urgente'?'bg-red-500 text-white':'bg-slate-100 text-slate-500'}`}>{t.priority}</span>
+                                                            </div>
+                                                            <p className="text-xs text-slate-500 font-bold mb-1 truncate max-w-[180px]">
+                                                                {t.companyName || 'General'} 
+                                                                {t.assignedTo && <span className="ml-2 bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full font-normal">Asignado a: {t.assignedTo}</span>}
+                                                            </p>
+                                                            <p className="text-sm text-slate-600 leading-relaxed line-clamp-2">{t.description}</p>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex flex-col items-end gap-2">
+                                                        {userRole === 'admin' && <button onClick={()=>deleteItem('tickets', t.id)} className="text-slate-300 hover:text-red-500"><Trash2 size={16}/></button>}
+                                                    </div>
+                                                </div>
+
+                                                {/* Footer del Ticket */}
+                                                <div className="mt-auto pt-3 border-t border-slate-50 flex justify-between items-center">
+                                                    <div className="flex flex-col">
+                                                        <span className="text-[10px] text-slate-400">{formatDateTime(t.createdAt)}</span>
+                                                        {t.assignedTo && <span className="text-[10px] text-indigo-500 font-medium">Asignado: {t.assignedTo}</span>}
+                                                    </div>
+                                                    
+                                                    <button 
+                                                        onClick={()=>{setForms({...forms, ticket: {...t, newUpdate: ''}}); setModal({type:'ticket', data:t})}} 
+                                                        className={`text-xs px-3 py-1.5 rounded font-bold transition ${isResolved ? 'bg-slate-100 text-slate-500 hover:bg-slate-200' : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'}`}
+                                                    >
+                                                        {isResolved ? 'Detalles' : 'Gestionar'}
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )})}
+                                    </div>
                                 </div>
                             )}
 
@@ -1326,344 +1369,21 @@
                         </div>
                     )}
 
-                    {/* MODALES EDICION/CREACION */}
-                    {modal && (
-                        <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-50 backdrop-blur-sm fade-in">
-                            <div className="bg-white p-6 rounded-2xl w-full max-w-2xl shadow-2xl scale-100 transition-all max-h-[90vh] overflow-y-auto">
-                                <h3 className="font-bold text-xl mb-6 capitalize text-slate-800 flex items-center gap-2">
-                                    {modal.type === 'company' ? <Building2 size={24} className="text-indigo-600"/> : modal.type === 'ticket' ? <LifeBuoy size={24} className="text-indigo-600"/> : <Building size={24} className="text-indigo-600"/>}
-                                    {modal.type === 'company' ? 'Gestión de Empresa' : modal.type === 'ticket' ? 'Gestión de Ticket' : 'Oficina'}
-                                </h3>
-                                
-                                {modal.type === 'office' && (
-                                    <div className="space-y-6">
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                            <div className="space-y-1 sm:col-span-2"><label className="text-xs font-bold text-slate-500 uppercase">Nombre Oficina</label><input className="border w-full p-2.5 rounded-lg bg-slate-50 focus:bg-white outline-none text-sm" placeholder="Ej. Torre A" value={forms.office.name} onChange={e=>setForms(f=>({...f, office:{...f.office, name:e.target.value}}))}/></div>
-                                            <div className="space-y-1 sm:col-span-2"><label className="text-xs font-bold text-slate-500 uppercase">Dirección Completa</label><input className="border w-full p-2.5 rounded-lg bg-slate-50 focus:bg-white outline-none text-sm" placeholder="Calle, Número, Colonia" value={forms.office.address} onChange={e=>setForms(f=>({...f, office:{...f.office, address:e.target.value}}))}/></div>
-                                            
-                                            {/* DATOS CONTRATO */}
-                                            <div className="space-y-1"><label className="text-xs font-bold text-slate-500 uppercase">Fin de Contrato</label><input type="date" className="border w-full p-2.5 rounded-lg bg-slate-50 focus:bg-white outline-none text-sm" value={forms.office.contractEndDate} onChange={e=>setForms(f=>({...f, office:{...f.office, contractEndDate:e.target.value}}))}/></div>
-                                            <div className="space-y-1"><label className="text-xs font-bold text-slate-500 uppercase">Nombre quien firma</label><input className="border w-full p-2.5 rounded-lg bg-slate-50 focus:bg-white outline-none text-sm" placeholder="Representante Legal" value={forms.office.signerName} onChange={e=>setForms(f=>({...f, office:{...f.office, signerName:e.target.value}}))}/></div>
-
-                                            {/* DATOS ARRENDADOR */}
-                                            <div className="sm:col-span-2 border-t pt-2 mt-2"><h4 className="text-xs font-bold text-indigo-900 uppercase mb-2 flex gap-1"><User size={14}/> Datos del Arrendador</h4></div>
-                                            <div className="space-y-1"><label className="text-xs font-bold text-slate-500 uppercase">Nombre Arrendador</label><input className="border w-full p-2.5 rounded-lg bg-slate-50 focus:bg-white outline-none text-sm" placeholder="Propietario / Inmobiliaria" value={forms.office.landlordName} onChange={e=>setForms(f=>({...f, office:{...f.office, landlordName:e.target.value}}))}/></div>
-                                            <div className="space-y-1"><label className="text-xs font-bold text-slate-500 uppercase">Teléfono Contacto</label><input className="border w-full p-2.5 rounded-lg bg-slate-50 focus:bg-white outline-none text-sm" value={forms.office.landlordPhone} onChange={e=>setForms(f=>({...f, office:{...f.office, landlordPhone:e.target.value}}))}/></div>
-                                            <div className="space-y-1 sm:col-span-2"><label className="text-xs font-bold text-slate-500 uppercase">Correo Electrónico</label><input className="border w-full p-2.5 rounded-lg bg-slate-50 focus:bg-white outline-none text-sm" value={forms.office.landlordEmail} onChange={e=>setForms(f=>({...f, office:{...f.office, landlordEmail:e.target.value}}))}/></div>
-
-                                            {/* DATOS FINANCIEROS */}
-                                            <div className="sm:col-span-2 border-t pt-2 mt-2"><h4 className="text-xs font-bold text-indigo-900 uppercase mb-2 flex gap-1"><DollarSign size={14}/> Datos Financieros</h4></div>
-                                            <div className="space-y-1"><label className="text-xs font-bold text-slate-500 uppercase">Monto Renta Mensual</label><input className="border w-full p-2.5 rounded-lg bg-slate-50 focus:bg-white outline-none text-sm" type="number" placeholder="$0.00" value={forms.office.rentAmount} onChange={e=>setForms(f=>({...f, office:{...f.office, rentAmount:e.target.value}}))}/></div>
-                                            <div className="space-y-1"><label className="text-xs font-bold text-slate-500 uppercase">Monto Pago Factura</label><input className="border w-full p-2.5 rounded-lg bg-slate-50 focus:bg-white outline-none text-sm" type="number" placeholder="$0.00" value={forms.office.invoiceAmount} onChange={e=>setForms(f=>({...f, office:{...f.office, invoiceAmount:e.target.value}}))}/></div>
-                                            
-                                            <div className="sm:col-span-2 bg-slate-50 p-3 rounded-lg border border-slate-200">
-                                                <label className="text-xs font-bold text-slate-500 uppercase block mb-2">Servicios Incluidos en Renta:</label>
-                                                <div className="flex flex-wrap gap-4">
-                                                    <label className="flex items-center gap-2 text-sm cursor-pointer"><input type="checkbox" className="accent-indigo-600" checked={forms.office.servicesIncluded?.water} onChange={e=>setForms(f=>({...f, office:{...f.office, servicesIncluded:{...f.office.servicesIncluded, water:e.target.checked}}}))}/> <Droplets size={14}/> Agua</label>
-                                                    <label className="flex items-center gap-2 text-sm cursor-pointer"><input type="checkbox" className="accent-indigo-600" checked={forms.office.servicesIncluded?.light} onChange={e=>setForms(f=>({...f, office:{...f.office, servicesIncluded:{...f.office.servicesIncluded, light:e.target.checked}}}))}/> <Zap size={14}/> Luz</label>
-                                                    <label className="flex items-center gap-2 text-sm cursor-pointer"><input type="checkbox" className="accent-indigo-600" checked={forms.office.servicesIncluded?.maintenance} onChange={e=>setForms(f=>({...f, office:{...f.office, servicesIncluded:{...f.office.servicesIncluded, maintenance:e.target.checked}}}))}/> <Wrench size={14}/> Mantenimiento</label>
-                                                </div>
-                                            </div>
-
-                                            <div className="space-y-1 sm:col-span-2"><label className="text-xs font-bold text-slate-500 uppercase">Notas Adicionales</label><textarea className="border w-full p-2.5 rounded-lg bg-slate-50 focus:bg-white outline-none h-16 text-sm" placeholder="Accesos, claves, observaciones..." value={forms.office.notes} onChange={e=>setForms(f=>({...f, office:{...f.office, notes:e.target.value}}))}/></div>
-                                        </div>
-                                        <div className="flex justify-end gap-3 pt-4 border-t mt-2"><button onClick={()=>setModal(null)} className="px-5 py-2.5 border border-slate-200 text-slate-600 font-medium rounded-lg hover:bg-slate-50">Cancelar</button><button onClick={saveOffice} className="px-5 py-2.5 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700">Guardar</button></div>
-                                    </div>
-                                )}
-
-                                {modal.type === 'company' && (
-                                    <div className="space-y-6">
-                                        {/* LOGICA DE BLOQUEO DE LIDER */}
-                                        <div className={`flex gap-4 items-center mb-2 p-3 rounded-lg border ${leaderStatus.disabled ? 'bg-slate-100 border-slate-200' : 'bg-amber-50 border-amber-100'}`}>
-                                            <Crown size={20} className={forms.company.isLeader ? "text-amber-500 fill-amber-500" : "text-slate-300"}/>
-                                            <div className="flex-1">
-                                                <label className={`text-sm font-bold flex-1 select-none ${leaderStatus.disabled ? 'text-slate-400 cursor-not-allowed' : 'text-slate-700 cursor-pointer'}`}>
-                                                    ¿Es Empresa Líder? 
-                                                    <input 
-                                                        type="checkbox" 
-                                                        className="ml-2 accent-amber-500" 
-                                                        checked={forms.company.isLeader} 
-                                                        onChange={e=>setForms(f=>({...f, company:{...f.company, isLeader:e.target.checked}}))}
-                                                        disabled={leaderStatus.disabled}
-                                                    />
-                                                </label>
-                                                {leaderStatus.disabled && <p className="text-[10px] text-red-400 mt-1 font-medium">{leaderStatus.message}</p>}
-                                            </div>
-                                        </div>
-                                        
-                                        {/* SECCION 1: DATOS GENERALES */}
-                                        <div>
-                                            <h4 className="text-xs font-bold text-indigo-900 uppercase mb-3 pb-1 border-b border-indigo-100 flex items-center gap-2"><Building size={14}/> Datos Generales</h4>
-                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                                <div className="space-y-1 sm:col-span-2"><label className="text-xs font-bold text-slate-500 uppercase">Nombre Empresa</label><input className="border w-full p-2.5 rounded-lg bg-slate-50 focus:bg-white outline-none text-sm" value={forms.company.name} onChange={e=>setForms(f=>({...f, company:{...f.company, name:e.target.value}}))}/></div>
-                                                <div className="space-y-1"><label className="text-xs font-bold text-slate-500 uppercase">Teléfono Oficina</label><input className="border w-full p-2.5 rounded-lg bg-slate-50 focus:bg-white outline-none text-sm" value={forms.company.phoneNumber} onChange={e=>setForms(f=>({...f, company:{...f.company, phoneNumber:e.target.value}}))}/></div>
-                                                <div className="space-y-1"><label className="text-xs font-bold text-slate-500 uppercase">Interior / Suite</label><input className="border w-full p-2.5 rounded-lg bg-slate-50 focus:bg-white outline-none text-sm" value={forms.company.interior} onChange={e=>setForms(f=>({...f, company:{...f.company, interior:e.target.value}}))}/></div>
-                                                <div className="space-y-1 sm:col-span-2"><label className="text-xs font-bold text-slate-500 uppercase">Sitio Web</label><input className="border w-full p-2.5 rounded-lg bg-slate-50 focus:bg-white outline-none text-sm" value={forms.company.webUrl} onChange={e=>setForms(f=>({...f, company:{...f.company, webUrl:e.target.value}}))}/></div>
-                                                <div className="space-y-1 sm:col-span-2"><label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-2"><Calendar size={12}/> Vencimiento Dominio</label><input type="date" className="border w-full p-2.5 rounded-lg bg-slate-50 focus:bg-white outline-none text-sm" value={forms.company.domainExpirationDate} onChange={e=>setForms(f=>({...f, company:{...f.company, domainExpirationDate:e.target.value}}))}/></div>
-                                            </div>
-                                        </div>
-
-                                        {/* SECCION 2: DATOS FISCALES Y LEGALES */}
-                                        <div>
-                                            <h4 className="text-xs font-bold text-indigo-900 uppercase mb-3 pb-1 border-b border-indigo-100 flex items-center gap-2"><FileText size={14}/> Datos Fiscales y Legales</h4>
-                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                                <div className="space-y-1"><label className="text-xs font-bold text-slate-500 uppercase">RFC</label><input className="border w-full p-2.5 rounded-lg bg-slate-50 focus:bg-white outline-none text-sm" value={forms.company.rfc} onChange={e=>setForms(f=>({...f, company:{...f.company, rfc:e.target.value}}))}/></div>
-                                                <div className="space-y-1"><label className="text-xs font-bold text-slate-500 uppercase">Representante Legal (Firma)</label><input className="border w-full p-2.5 rounded-lg bg-slate-50 focus:bg-white outline-none text-sm" value={forms.company.legalRep} onChange={e=>setForms(f=>({...f, company:{...f.company, legalRep:e.target.value}}))}/></div>
-                                                <div className="space-y-1 sm:col-span-2"><label className="text-xs font-bold text-slate-500 uppercase">Dirección Fiscal</label><input className="border w-full p-2.5 rounded-lg bg-slate-50 focus:bg-white outline-none text-sm" value={forms.company.fiscalAddress} onChange={e=>setForms(f=>({...f, company:{...f.company, fiscalAddress:e.target.value}}))}/></div>
-                                                <div className="space-y-1 sm:col-span-2"><label className="text-xs font-bold text-slate-500 uppercase">Dirección Comprobante Domicilio</label><input className="border w-full p-2.5 rounded-lg bg-slate-50 focus:bg-white outline-none text-sm" value={forms.company.proofAddress} onChange={e=>setForms(f=>({...f, company:{...f.company, proofAddress:e.target.value}}))}/></div>
-                                                <div className="space-y-1 sm:col-span-2"><label className="text-xs font-bold text-slate-500 uppercase">Persona a Cargo (Contacto)</label><input className="border w-full p-2.5 rounded-lg bg-slate-50 focus:bg-white outline-none text-sm" placeholder="Quien contesta el teléfono" value={forms.company.contactPerson} onChange={e=>setForms(f=>({...f, company:{...f.company, contactPerson:e.target.value}}))}/></div>
-                                            </div>
-                                        </div>
-
-                                        {/* SECCION 3: ACCESOS Y CORREOS */}
-                                        <div>
-                                            <h4 className="text-xs font-bold text-indigo-900 uppercase mb-3 pb-1 border-b border-indigo-100 flex items-center gap-2"><Key size={14}/> Accesos y Correos</h4>
-                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                                <div className="space-y-1"><label className="text-xs font-bold text-slate-500 uppercase">Correo Asignado</label><input className="border w-full p-2.5 rounded-lg bg-slate-50 focus:bg-white outline-none text-sm" value={forms.company.assignedEmail} onChange={e=>setForms(f=>({...f, company:{...f.company, assignedEmail:e.target.value}}))}/></div>
-                                                {userRole === 'admin' ? (
-                                                    <div className="space-y-1"><label className="text-xs font-bold text-red-500 uppercase flex gap-1 items-center"><Lock size={10}/> Contraseña</label><input type="text" className="border w-full p-2.5 rounded-lg bg-red-50 focus:bg-white outline-none text-sm text-red-600" value={forms.company.assignedEmailPassword} onChange={e=>setForms(f=>({...f, company:{...f.company, assignedEmailPassword:e.target.value}}))}/></div>
-                                                ) : <div className="space-y-1"><label className="text-xs font-bold text-slate-400 uppercase">Contraseña</label><div className="p-2.5 text-xs text-slate-400 bg-slate-100 rounded italic">Oculto</div></div>}
-
-                                                <div className="space-y-1"><label className="text-xs font-bold text-slate-500 uppercase">Correo Tesorería/Otros</label><input className="border w-full p-2.5 rounded-lg bg-slate-50 focus:bg-white outline-none text-sm" value={forms.company.treasuryEmail} onChange={e=>setForms(f=>({...f, company:{...f.company, treasuryEmail:e.target.value}}))}/></div>
-                                                {userRole === 'admin' ? (
-                                                    <div className="space-y-1"><label className="text-xs font-bold text-red-500 uppercase flex gap-1 items-center"><Lock size={10}/> Contraseña</label><input type="text" className="border w-full p-2.5 rounded-lg bg-red-50 focus:bg-white outline-none text-sm text-red-600" value={forms.company.treasuryEmailPassword} onChange={e=>setForms(f=>({...f, company:{...f.company, treasuryEmailPassword:e.target.value}}))}/></div>
-                                                ) : <div className="space-y-1"><label className="text-xs font-bold text-slate-400 uppercase">Contraseña</label><div className="p-2.5 text-xs text-slate-400 bg-slate-100 rounded italic">Oculto</div></div>}
-                                            </div>
-                                        </div>
-                                        
-                                        {/* CHECKLIST */}
-                                        <div className="border-t pt-4">
-                                            <h4 className="font-bold text-sm text-slate-700 mb-2 flex items-center gap-2"><CheckSquare size={16}/> Checklist de Alta</h4>
-                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                                                {Object.keys(checklistLabels).map(key => (
-                                                    <label key={key} className="flex items-center gap-2 p-2 rounded hover:bg-slate-50 cursor-pointer border border-transparent hover:border-slate-100">
-                                                        <input type="checkbox" className="accent-indigo-600" checked={forms.company.checklist?.[key]} onChange={e=>setForms(f=>({...f, company:{...f.company, checklist:{...f.company.checklist, [key]:e.target.checked}}}))}/>
-                                                        <span>{checklistLabels[key]}</span>
-                                                    </label>
-                                                ))}
-                                            </div>
-                                        </div>
-
-                                        {/* OBSERVACIONES */}
-                                        <div className="border-t pt-4">
-                                            <h4 className="font-bold text-sm text-slate-700 mb-2 flex items-center gap-2"><MessageSquare size={16}/> Observaciones</h4>
-                                            <textarea className="border w-full p-3 rounded-lg bg-slate-50 focus:bg-white outline-none h-20 text-sm" placeholder="Detalles adicionales sobre la empresa..." value={forms.company.observations} onChange={e=>setForms(f=>({...f, company:{...f.company, observations:e.target.value}}))}/>
-                                        </div>
-
-                                        <div className="flex justify-end gap-3 pt-4 border-t mt-2"><button onClick={()=>setModal(null)} className="px-5 py-2.5 border border-slate-200 text-slate-600 font-medium rounded-lg hover:bg-slate-50">Cancelar</button><button onClick={saveCompany} className="px-5 py-2.5 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700">Guardar</button></div>
-                                    </div>
-                                )}
-
-                                {modal.type === 'ticket' && (
-                                    <div className="space-y-4">
-                                        {!modal.data && (
-                                            <>
-                                                {/* SELECCION OFICINA */}
-                                                <div className="space-y-1">
-                                                    <label className="text-xs font-bold text-slate-500 uppercase">1. Seleccionar Oficina</label>
-                                                    <select 
-                                                        className="border w-full p-3 rounded-lg bg-slate-50 focus:bg-white outline-none" 
-                                                        value={forms.ticket.officeId} 
-                                                        onChange={e=>setForms(f=>({...f, ticket:{...f.ticket, officeId:e.target.value, companyId: '', isGeneralIssue: false}}))}
-                                                    >
-                                                        <option value="">-- Elegir Oficina --</option>
-                                                        {items.offices.filter(o=>o.status!=='archived').map(o=><option key={o.id} value={o.id}>{o.name}</option>)}
-                                                    </select>
-                                                </div>
-
-                                                {/* ALCANCE Y EMPRESA */}
-                                                {forms.ticket.officeId && (
-                                                    <div className="space-y-3 animate-[fadeIn_0.3s_ease-out]">
-                                                        <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
-                                                            <label className="flex items-center gap-2 text-sm font-medium text-slate-700 cursor-pointer">
-                                                                <input 
-                                                                    type="checkbox" 
-                                                                    className="accent-indigo-600 w-4 h-4" 
-                                                                    checked={forms.ticket.isGeneralIssue} 
-                                                                    onChange={e=>setForms(f=>({...f, ticket:{...f.ticket, isGeneralIssue:e.target.checked, companyId: ''}}))}
-                                                                />
-                                                                Es un problema General de la Oficina (Afecta a todos)
-                                                            </label>
-                                                        </div>
-
-                                                        {!forms.ticket.isGeneralIssue && (
-                                                            <div className="space-y-1">
-                                                                <label className="text-xs font-bold text-slate-500 uppercase">2. Seleccionar Empresa Afectada</label>
-                                                                <select 
-                                                                    className="border w-full p-3 rounded-lg bg-slate-50 focus:bg-white outline-none" 
-                                                                    value={forms.ticket.companyId} 
-                                                                    onChange={e=>setForms(f=>({...f, ticket:{...f.ticket, companyId:e.target.value}}))}
-                                                                >
-                                                                    <option value="">-- Elegir Empresa --</option>
-                                                                    {items.offices.find(o=>o.id===forms.ticket.officeId)?.companies?.filter(c=>c.status!=='archived').map((c, i)=>(
-                                                                        <option key={i} value={i}>{c.name}</option>
-                                                                    ))}
-                                                                </select>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                )}
-
-                                                {/* DETALLES DEL TICKET */}
-                                                {(forms.ticket.isGeneralIssue || forms.ticket.companyId !== '') && (
-                                                    <div className="space-y-3 animate-[fadeIn_0.3s_ease-out]">
-                                                        <div className="grid grid-cols-2 gap-3">
-                                                            <div className="space-y-1">
-                                                                <label className="text-xs font-bold text-slate-500 uppercase">Tipo de Falla</label>
-                                                                <select 
-                                                                    className="border w-full p-3 rounded-lg bg-slate-50 focus:bg-white outline-none" 
-                                                                    value={forms.ticket.category} 
-                                                                    onChange={e=>setForms(f=>({...f, ticket:{...f.ticket, category:e.target.value}}))}
-                                                                >
-                                                                    {ticketCategories.map(cat=><option key={cat} value={cat}>{cat}</option>)}
-                                                                </select>
-                                                            </div>
-                                                            <div className="space-y-1">
-                                                                <label className="text-xs font-bold text-slate-500 uppercase">Prioridad</label>
-                                                                <select 
-                                                                    className="border w-full p-3 rounded-lg bg-slate-50 focus:bg-white outline-none" 
-                                                                    value={forms.ticket.priority} 
-                                                                    onChange={e=>setForms(f=>({...f, ticket:{...f.ticket, priority:e.target.value}}))}
-                                                                >
-                                                                    <option value="baja">Baja</option>
-                                                                    <option value="media">Media</option>
-                                                                    <option value="alta">Alta</option>
-                                                                    <option value="urgente">URGENTE</option>
-                                                                </select>
-                                                            </div>
-                                                        </div>
-                                                        <div className="space-y-1">
-                                                            <label className="text-xs font-bold text-slate-500 uppercase">Asignado A:</label>
-                                                            <div className="relative">
-                                                                <UserCheck size={16} className="absolute left-3 top-3.5 text-slate-400"/>
-                                                                <input 
-                                                                    className="border w-full pl-9 p-3 rounded-lg bg-slate-50 focus:bg-white outline-none" 
-                                                                    placeholder="Nombre del responsable..." 
-                                                                    value={forms.ticket.assignedTo} 
-                                                                    onChange={e=>setForms(f=>({...f, ticket:{...f.ticket, assignedTo:e.target.value}}))}
-                                                                />
-                                                            </div>
-                                                        </div>
-                                                        <div className="space-y-1">
-                                                            <label className="text-xs font-bold text-slate-500 uppercase">Descripción Detallada</label>
-                                                            <textarea 
-                                                                className="border w-full p-3 rounded-lg bg-slate-50 focus:bg-white outline-none h-24 resize-none" 
-                                                                placeholder="Describe el problema con detalle..." 
-                                                                value={forms.ticket.description} 
-                                                                onChange={e=>setForms(f=>({...f, ticket:{...f.ticket, description:e.target.value}}))}
-                                                            />
-                                                        </div>
-                                                    </div>
-                                                )}
-                                            </>
-                                        )}
-                                        {modal.data && (
-                                            <div className="space-y-4">
-                                                {/* Estado solo lectura si esta resuelto */}
-                                                {modal.data.status === 'resuelto' ? (
-                                                    <div className="bg-emerald-50 p-4 rounded-lg border border-emerald-200 text-center">
-                                                        <CheckSquare className="w-8 h-8 text-emerald-600 mx-auto mb-2"/>
-                                                        <h4 className="font-bold text-emerald-800">Ticket Resuelto</h4>
-                                                        <p className="text-xs text-emerald-600 mt-1">Este ticket está cerrado y en modo lectura.</p>
-                                                    </div>
-                                                ) : (
-                                                    <div className="grid grid-cols-2 gap-3">
-                                                        <div className="space-y-1">
-                                                            <label className="text-xs font-bold text-slate-500 uppercase">Estado Actual</label>
-                                                            <select 
-                                                                className="border w-full p-2.5 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500 outline-none font-bold" 
-                                                                value={forms.ticket.status} 
-                                                                onChange={e=>setForms(f=>({...f, ticket:{...f.ticket, status:e.target.value}}))}
-                                                                disabled={userRole !== 'admin'}
-                                                            >
-                                                                <option value="pendiente">Pendiente</option>
-                                                                <option value="proceso">En Proceso</option>
-                                                                <option value="resuelto">Resuelto (Cerrar)</option>
-                                                            </select>
-                                                        </div>
-                                                        <div className="space-y-1">
-                                                            <label className="text-xs font-bold text-slate-500 uppercase">Asignado A</label>
-                                                            <input 
-                                                                className="border w-full p-2.5 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500 outline-none" 
-                                                                value={forms.ticket.assignedTo} 
-                                                                onChange={e=>setForms(f=>({...f, ticket:{...f.ticket, assignedTo:e.target.value}}))}
-                                                            />
-                                                        </div>
-                                                    </div>
-                                                )}
-
-                                                <div className="bg-slate-50 p-4 rounded-lg border text-sm text-slate-600 italic">
-                                                    <p className="font-bold text-xs text-slate-400 mb-1">Descripción Original:</p>
-                                                    "{forms.ticket.description}"
-                                                </div>
-
-                                                {/* Historial */}
-                                                {forms.ticket.updates && forms.ticket.updates.length > 0 && (
-                                                    <div className="space-y-2 max-h-40 overflow-y-auto pr-2 custom-scrollbar">
-                                                        {forms.ticket.updates.map((u, i) => (
-                                                            <div key={i} className="text-xs bg-white border p-2 rounded shadow-sm">
-                                                                <div className="flex justify-between text-slate-400 mb-1">
-                                                                    <span className="font-bold">{u.author}</span>
-                                                                    <span>{formatDateTime(u.date)}</span>
-                                                                </div>
-                                                                <p className="text-slate-700">{u.text}</p>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                )}
-
-                                                {/* Campo de Nuevo Avance (Solo si no esta resuelto) */}
-                                                {modal.data.status !== 'resuelto' && (
-                                                    <div className="space-y-1">
-                                                        <label className="text-xs font-bold text-slate-500 uppercase flex justify-between">
-                                                            Agregar Avance / Observación
-                                                            {forms.ticket.status !== modal.data.status && <span className="text-red-500 animate-pulse">¡Obligatorio por cambio de estado!</span>}
-                                                        </label>
-                                                        <textarea 
-                                                            className={`border w-full p-3 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500 outline-none h-24 ${forms.ticket.status !== modal.data.status && !forms.ticket.newUpdate ? 'border-red-300 bg-red-50' : ''}`}
-                                                            placeholder={forms.ticket.status !== modal.data.status ? "Escribe el motivo del cambio de estado..." : "Escribe un nuevo comentario..."}
-                                                            value={forms.ticket.newUpdate} 
-                                                            onChange={e=>setForms(f=>({...f, ticket:{...f.ticket, newUpdate:e.target.value}}))}
-                                                        />
-                                                    </div>
-                                                )}
-                                            </div>
-                                        )}
-                                        
-                                        <div className="flex justify-end gap-3 pt-4 border-t mt-2">
-                                            <button onClick={()=>setModal(null)} className="px-5 py-2.5 border border-slate-200 text-slate-600 font-medium rounded-lg hover:bg-slate-50">Cerrar</button>
-                                            
-                                            {/* Boton Guardar Normal */}
-                                            {!modal.data && (
-                                                <button 
-                                                    onClick={saveTicket} 
-                                                    className="px-5 py-2.5 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                                                    disabled={(!forms.ticket.officeId || (!forms.ticket.isGeneralIssue && forms.ticket.companyId === ''))}
-                                                >
-                                                    Crear Ticket
-                                                </button>
-                                            )}
-
-                                            {/* Botones Edicion */}
-                                            {modal.data && modal.data.status !== 'resuelto' && (
-                                                <button onClick={saveTicket} className="px-5 py-2.5 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700">Guardar Cambios</button>
-                                            )}
-
-                                            {/* Boton Reabrir */}
-                                            {modal.data && modal.data.status === 'resuelto' && userRole === 'admin' && (
-                                                <div className="flex-1 flex flex-col sm:flex-row gap-2">
-                                                    <input 
-                                                        className="flex-1 border p-2 rounded text-xs focus:ring-2 focus:ring-amber-500 outline-none" 
-                                                        placeholder="Motivo para reabrir..." 
-                                                        value={forms.ticket.newUpdate}
-                                                        onChange={e=>setForms(f=>({...f, ticket:{...f.ticket, newUpdate:e.target.value}}))}
-                                                    />
-                                                    <button onClick={handleReopenTicket} className="px-4 py-2 bg-amber-500 text-white rounded-lg font-bold hover:bg-amber-600 text-xs whitespace-nowrap">Reabrir Ticket</button>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                )}
+                    {/* MODAL EXITO EMAIL */}
+                    {emailSuccessModal && (
+                        <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-50 backdrop-blur-sm animate-[fadeIn_0.2s_ease-out]">
+                            <div className="bg-white p-8 rounded-2xl shadow-2xl text-center max-w-sm transform scale-100 transition-all">
+                                <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-emerald-100 mb-6">
+                                    <CheckCircle className="h-10 w-10 text-emerald-600" />
+                                </div>
+                                <h3 className="text-xl font-bold text-slate-800 mb-2">¡Correo Enviado!</h3>
+                                <p className="text-sm text-slate-500 mb-6">El ticket se ha creado y el equipo ha sido notificado exitosamente.</p>
+                                <button 
+                                    onClick={() => setEmailSuccessModal(false)}
+                                    className="w-full bg-emerald-600 text-white font-bold py-3 rounded-lg hover:bg-emerald-700 transition shadow-lg shadow-emerald-200"
+                                >
+                                    Entendido
+                                </button>
                             </div>
                         </div>
                     )}
