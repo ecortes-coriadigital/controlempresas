@@ -174,7 +174,7 @@
             const dayOfWeek = firstDay.getDay(); // 0 (Dom) - 6 (Sab)
             
             // Dias hasta el primer lunes
-            let daysToFirstMonday = (1 - dayOfWeek + 7) % 7;
+            let daysToFirstMonday = (1 - dayOfWeek +7) % 7;
             if (daysToFirstMonday === 0 && dayOfWeek === 1) daysToFirstMonday = 0; // Si hoy es lunes
             else if (dayOfWeek === 0) daysToFirstMonday = 1;
             else daysToFirstMonday = (8 - dayOfWeek);
@@ -452,6 +452,7 @@
             const sendNotificationEmail = async (ticketData) => {
                 // Validación básica de que EmailJS está configurado
                 if (emailJsConfig.serviceID.includes("TU_SERVICE_ID") || !window.emailjs) {
+                    alert("⚠️ Aviso: El correo no se envió porque faltan las credenciales de EmailJS en el código.");
                     console.log("EmailJS no configurado.");
                     return;
                 }
@@ -531,18 +532,28 @@
                     }
                     
                     delete data.isGeneralIssue; 
-                    await updateDoc(doc(ref, modal.data.id), data);
+                    
+                    try {
+                        await updateDoc(doc(ref, modal.data.id), data);
+                        setModal(null);
+                    } catch(e) {
+                        alert("Error al guardar: " + e.message);
+                    }
                 } else {
                     // Nuevo
                     data.createdAt = serverTimestamp();
                     delete data.newUpdate;
                     delete data.isGeneralIssue;
-                    await addDoc(ref, data);
                     
-                    // ENVIAR NOTIFICACION EMAIL AL CREAR NUEVO
-                    sendNotificationEmail(data);
+                    try {
+                        await addDoc(ref, data);
+                        setModal(null);
+                        // ENVIAR NOTIFICACION EMAIL AL CREAR NUEVO
+                        sendNotificationEmail(data);
+                    } catch(e) {
+                        alert("Error al crear ticket: " + e.message);
+                    }
                 }
-                setModal(null);
             };
 
             const handleReopenTicket = async () => {
