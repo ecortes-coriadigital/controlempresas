@@ -731,7 +731,8 @@
                                     companyName: c.name,
                                     phone: c.phoneNumber,
                                     web: c.webUrl,
-                                    checks: { phoneWorking: false, phoneAnswered: false, webOnline: false },
+                                    email: c.assignedEmail,
+                                    checks: { phoneWorking: false, phoneAnswered: false, webOnline: false, emailWorking: false },
                                     notes: '',
                                     locked: false
                                 });
@@ -771,7 +772,7 @@
 
                 const updatedDetails = auditForm.map(item => {
                     if (!isFinal) {
-                        const hasData = item.checks.phoneWorking || item.checks.phoneAnswered || item.checks.webOnline || item.notes.trim() !== '';
+                        const hasData = item.checks.phoneWorking || item.checks.phoneAnswered || item.checks.webOnline || item.checks.emailWorking || item.notes.trim() !== '';
                         return { ...item, locked: item.locked || hasData };
                     }
                     return item;
@@ -1373,6 +1374,7 @@
                                                                 <th className="pb-2 text-center">Tel. Funciona</th>
                                                                 <th className="pb-2 text-center">Tel. Contesta</th>
                                                                 <th className="pb-2 text-center">Web Online</th>
+                                                                <th className="pb-2 text-center">Email OK</th>
                                                                 <th className="pb-2">Observaciones</th>
                                                             </tr>
                                                         </thead>
@@ -1386,6 +1388,7 @@
                                                                     <td className="py-2 text-center">{d.checks.phoneWorking ? '✅' : '❌'}</td>
                                                                     <td className="py-2 text-center">{d.checks.phoneAnswered ? '✅' : '❌'}</td>
                                                                     <td className="py-2 text-center">{d.checks.webOnline ? '✅' : '❌'}</td>
+                                                                    <td className="py-2 text-center">{d.checks.emailWorking ? '✅' : '❌'}</td>
                                                                     <td className="py-2 text-slate-500 italic truncate max-w-[150px]">{d.notes}</td>
                                                                 </tr>
                                                             ))}
@@ -1451,9 +1454,10 @@
                                                 <div className="flex-1">
                                                     <p className={`font-bold ${item.locked ? 'text-slate-500' : 'text-indigo-900'}`}>{item.companyName}</p>
                                                     <p className="text-xs text-slate-400">{item.officeName}</p>
-                                                    <div className="flex gap-3 text-xs text-slate-400 mt-1">
+                                                    <div className="flex flex-wrap gap-3 text-xs text-slate-400 mt-1">
                                                         <span className="flex items-center gap-1"><Phone size={10}/> {item.phone || 'S/N'}</span>
                                                         <span className="flex items-center gap-1"><Globe size={10}/> {item.web || 'S/W'}</span>
+                                                        <span className="flex items-center gap-1"><Mail size={10}/> {item.email || 'S/E'}</span>
                                                     </div>
                                                 </div>
                                                 
@@ -1481,6 +1485,14 @@
                                                             setAuditForm(list);
                                                         }}/> 
                                                         🌐 Web OK
+                                                    </label>
+                                                    <label className={`flex items-center gap-2 text-xs font-bold px-3 py-2 rounded border transition ${item.locked ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-slate-100 bg-slate-50'}`}>
+                                                        <input type="checkbox" className="accent-emerald-500" checked={item.checks.emailWorking} disabled={item.locked} onChange={e=>{
+                                                            const list = [...auditForm];
+                                                            list[idx].checks.emailWorking = e.target.checked;
+                                                            setAuditForm(list);
+                                                        }}/> 
+                                                        ✉️ Email OK
                                                     </label>
                                                 </div>
 
